@@ -456,11 +456,11 @@ OpenAITest(){
         return
     elif [ -z "$result1" ] && [ -n "$result2" ] && [[ "$tmpresult1" != "curl"* ]]; then
         echo -n -e "\r ChatGPT:\t\t\t\t${Font_Yellow}Only Available with Web Browser${Font_Suffix}\n"
-        modifyJsonTemplate 'OpenAI_result' 'Only Available with Web Browser'
+        modifyJsonTemplate 'OpenAI_result' 'Only Web'
        return
     elif [ -n "$result1" ] && [ -z "$result2" ]; then
         echo -n -e "\r ChatGPT:\t\t\t\t${Font_Yellow}Only Available with Mobile APP${Font_Suffix}\n"
-        modifyJsonTemplate 'OpenAI_result' 'Only Available with Mobile APP'
+        modifyJsonTemplate 'OpenAI_result' 'Only APP'
         return
     elif [[ "$tmpresult1" == "curl"* ]] && [ -n "$result2" ]; then
         echo -n -e "\r ChatGPT:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
