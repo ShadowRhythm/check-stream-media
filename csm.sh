@@ -441,64 +441,36 @@ MediaUnlockTest_YouTube_Premium() {
     fi
 }
 
-###
- # @Author: Vincent Young
- # @Date: 2023-02-09 17:39:59
- # @LastEditors: Vincent Young
- # @LastEditTime: 2023-02-15 20:54:40
- # @FilePath: /OpenAI-Checker/openai.sh
- # @Telegram: https://t.me/missuo
- #
- # Copyright © 2023 by Vincent, All Rights Reserved.
-###
-
-OpenAiUnlockTest()
-{
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[0;33m'
-    PLAIN='\033[0m'
-    BLUE="\033[36m"
-
-    SUPPORT_COUNTRY=(AL DZ AD AO AG AR AM AU AT AZ BS BD BB BE BZ BJ BT BA BW BR BG BF CV CA CL CO KM CR HR CY DK DJ DM DO EC SV EE FJ FI FR GA GM GE DE GH GR GD GT GN GW GY HT HN HU IS IN ID IQ IE IL IT JM JP JO KZ KE KI KW KG LV LB LS LR LI LT LU MG MW MY MV ML MT MH MR MU MX MC MN ME MA MZ MM NA NR NP NL NZ NI NE NG MK NO OM PK PW PA PG PE PH PL PT QA RO RW KN LC VC WS SM ST SN RS SC SL SG SK SI SB ZA ES LK SR SE CH TH TG TO TT TN TR TV UG AE US UY VU ZM BO BN CG CZ VA FM MD PS KR TW TZ TL GB)
-    echo
-    echo -e "${BLUE}OpenAI Access Checker. Made by Vincent${PLAIN}"
-    echo -e "${BLUE}https://github.com/missuo/OpenAI-Checker${PLAIN}"
-    #echo "-------------------------------------"
-    if [[ $(curl -sS https://chat.openai.com/ -I | grep "text/plain") != "" ]]
-    then
-        echo "Your IP is BLOCKED!"
+OpenAITest(){
+    local tmpresult1=$(curl $useNIC $usePROXY $xForward -${1} ${ssll} -sS --max-time 10 'https://api.openai.com/compliance/cookie_requirements'   -H 'authority: api.openai.com'   -H 'accept: */*'   -H 'accept-language: zh-CN,zh;q=0.9'   -H 'authorization: Bearer null'   -H 'content-type: application/json'   -H 'origin: https://platform.openai.com'   -H 'referer: https://platform.openai.com/'   -H 'sec-ch-ua: "Microsoft Edge";v="119", "Chromium";v="119", "Not?A_Brand";v="24"'   -H 'sec-ch-ua-mobile: ?0'   -H 'sec-ch-ua-platform: "Windows"'   -H 'sec-fetch-dest: empty'   -H 'sec-fetch-mode: cors'   -H 'sec-fetch-site: same-site'   -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0' 2>&1)
+    local tmpresult2=$(curl $useNIC $usePROXY $xForward -${1} ${ssll} -sS --max-time 10 'https://ios.chat.openai.com/' -H 'authority: ios.chat.openai.com'   -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'   -H 'accept-language: zh-CN,zh;q=0.9' -H 'sec-ch-ua: "Microsoft Edge";v="119", "Chromium";v="119", "Not?A_Brand";v="24"'   -H 'sec-ch-ua-mobile: ?0'   -H 'sec-ch-ua-platform: "Windows"'   -H 'sec-fetch-dest: document'   -H 'sec-fetch-mode: navigate'   -H 'sec-fetch-site: none'   -H 'sec-fetch-user: ?1'   -H 'upgrade-insecure-requests: 1'   -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0' 2>&1)
+    local result1=$(echo $tmpresult1 | grep unsupported_country)
+    local result2=$(echo $tmpresult2 | grep VPN)
+    if [ -z "$result2" ] && [ -z "$result1" ] && [[ "$tmpresult1" != "curl"* ]] && [[ "$tmpresult2" != "curl"* ]]; then
+        echo -n -e "\r ChatGPT:\t\t\t\t${Font_Green}Yes${Font_Suffix}\n"
+        modifyJsonTemplate 'OpenAI_result' 'Yes'
+        return
+    elif [ -n "$result2" ] && [ -n "$result1" ]; then
+        echo -n -e "\r ChatGPT:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
+        modifyJsonTemplate 'OpenAI_result' 'No'
+        return
+    elif [ -z "$result1" ] && [ -n "$result2" ] && [[ "$tmpresult1" != "curl"* ]]; then
+        echo -n -e "\r ChatGPT:\t\t\t\t${Font_Yellow}Only Available with Web Browser${Font_Suffix}\n"
+        modifyJsonTemplate 'OpenAI_result' 'Only Available with Web Browser'
+       return
+    elif [ -n "$result1" ] && [ -z "$result2" ]; then
+        echo -n -e "\r ChatGPT:\t\t\t\t${Font_Yellow}Only Available with Mobile APP${Font_Suffix}\n"
+        modifyJsonTemplate 'OpenAI_result' 'Only Available with Mobile APP'
+        return
+    elif [[ "$tmpresult1" == "curl"* ]] && [ -n "$result2" ]; then
+        echo -n -e "\r ChatGPT:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
+        modifyJsonTemplate 'OpenAI_result' 'No'
+        return
     else
-        #echo -e "[IPv4]"
-        # check4=`ping 1.1.1.1 -c 1 2>&1`;
-        # if [[ "$check4" != *"received"* ]] && [[ "$check4" != *"transmitted"* ]];then
-        #     echo -e "\033[34mIPv4 is not supported on the current host. Skip...\033[0m";
-        #     modifyJsonTemplate 'OpenAI_result' 'Unknow'
-        # else
-            # local_ipv4=$(curl -4 -s --max-time 10 api64.ipify.org)
-            #local_ipv4=$(curl -4 -sS https://chat.openai.com/cdn-cgi/trace | grep "ip=" | awk -F= '{print $2}')
-            #local_isp4=$(curl -s -4 --max-time 10  --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.87 Safari/537.36" "https://api.ip.sb/geoip/${local_ipv4}" | grep organization | cut -f4 -d '"')
-            #local_asn4=$(curl -s -4 --max-time 10  --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.87 Safari/537.36" "https://api.ip.sb/geoip/${local_ipv4}" | grep asn | cut -f8 -d ',' | cut -f2 -d ':')
-            #echo -e "${BLUE}Your IPv4: ${local_ipv4} - ${local_isp4}${PLAIN}"
-            iso2_code4=$(curl -4 -sS https://chat.openai.com/cdn-cgi/trace | grep "loc=" | awk -F= '{print $2}')
-            found=0
-            for country in "${SUPPORT_COUNTRY[@]}"
-            do
-                if [[ "${country}" == "${iso2_code4}" ]];
-                then
-                    echo -e "${BLUE}Your IP supports access to OpenAI. Region: ${iso2_code4}${PLAIN}"
-                    modifyJsonTemplate 'OpenAI_result' 'Yes' "${iso2_code4}"
-                    found=1
-                    break
-                fi
-            done
-
-            if [[ $found -eq 0 ]];
-            then
-                echo -e "${RED}Region: ${iso2_code4}. Not support OpenAI at this time.${PLAIN}"
-                modifyJsonTemplate 'OpenAI_result' 'No'
-            fi
-        # fi
+        echo -n -e "\r ChatGPT:\t\t\t\t${Font_Red}Failed${Font_Suffix}\n"
+        modifyJsonTemplate 'OpenAI_result' 'Failed'
+       return
+    
     fi
 }
 
@@ -651,7 +623,7 @@ runCheck() {
     MediaUnlockTest_Netflix 6
     MediaUnlockTest_YouTube_Premium 6
     MediaUnlockTest_DisneyPlus 6
-    OpenAiUnlockTest
+    OpenAITest 4
 }
 
 checkData()
