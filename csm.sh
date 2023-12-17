@@ -319,6 +319,7 @@ MediaUnlockTest_AbemaTV_IPTest() {
 
 MediaUnlockTest_Netflix() {
     local result1=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsL --write-out %{http_code} --output /dev/null --max-time 10 "https://www.netflix.com/title/81280792" 2>&1)
+    local result2=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsL --write-out %{http_code} --output /dev/null --max-time 10 "https://www.netflix.com/title/70143836" 2>&1)
 
     if [[ "$result1" == "404" ]]; then
         modifyJsonTemplate 'Netflix_result' 'No' 'Originals Only'
