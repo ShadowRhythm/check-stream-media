@@ -551,9 +551,6 @@ printInfo() {
 runCheck() {
     createJsonTemplate
     MediaUnlockTest_BBCiPLAYER 4
-    MediaUnlockTest_MyTVSuper 4
-    MediaUnlockTest_BilibiliHKMCTW 4
-    MediaUnlockTest_BilibiliTW 4
     MediaUnlockTest_AbemaTV_IPTest 4
     MediaUnlockTest_Netflix 6
     MediaUnlockTest_YouTube_Premium 6
