@@ -231,69 +231,6 @@ MediaUnlockTest_BBCiPLAYER() {
     fi
 }
 
-MediaUnlockTest_MyTVSuper() {
-    local result=$(curl $useNIC $usePROXY $xForward -s -${1} --max-time 10 "https://www.mytvsuper.com/api/auth/getSession/self/" 2>&1 | python -m json.tool 2>/dev/null | grep 'region' | awk '{print $2}')
-
-    if [[ "$result" == "1" ]]; then
-        echo -n -e "\r MyTVSuper:\t\t\t\t${Font_Green}Yes${Font_Suffix}\n"
-        modifyJsonTemplate 'MyTVSuper_result' 'Yes'
-        return
-    else
-        echo -n -e "\r MyTVSuper:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
-        modifyJsonTemplate 'MyTVSuper_result' 'No'
-        return
-    fi
-
-    echo -n -e "\r MyTVSuper:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
-    modifyJsonTemplate 'MyTVSuper_result' 'Unknow'
-    return
-
-}
-
-MediaUnlockTest_BilibiliHKMCTW() {
-    local randsession="$(cat /dev/urandom | head -n 32 | md5sum | head -c 32)"
-    # 尝试获取成功的结果
-    local result=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${1} -fsSL --max-time 10 "https://api.bilibili.com/pgc/player/web/playurl?avid=18281381&cid=29892777&qn=0&type=&otype=json&ep_id=183799&fourk=1&fnver=0&fnval=16&session=${randsession}&module=bangumi" 2>&1)
-    if [[ "$result" != "curl"* ]]; then
-        local result="$(echo "${result}" | python -m json.tool 2>/dev/null | grep '"code"' | head -1 | awk '{print $2}' | cut -d ',' -f1)"
-        if [ "${result}" = "0" ]; then
-            echo -n -e "\r BiliBili Hongkong/Macau/Taiwan:\t${Font_Green}Yes${Font_Suffix}\n"
-            modifyJsonTemplate 'BilibiliHKMCTW_result' 'Yes'
-        elif [ "${result}" = "-10403" ]; then
-            echo -n -e "\r BiliBili Hongkong/Macau/Taiwan:\t${Font_Red}No${Font_Suffix}\n"
-            modifyJsonTemplate 'BilibiliHKMCTW_result' 'No'
-        else
-            echo -n -e "\r BiliBili Hongkong/Macau/Taiwan:\t${Font_Red}Failed${Font_Suffix} ${Font_SkyBlue}(${result})${Font_Suffix}\n"
-            modifyJsonTemplate 'BilibiliHKMCTW_result' 'Unknow'
-        fi
-    else
-        echo -n -e "\r BiliBili Hongkong/Macau/Taiwan:\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
-        modifyJsonTemplate 'BilibiliHKMCTW_result' 'Unknow'
-    fi
-}
-
-MediaUnlockTest_BilibiliTW() {
-    local randsession="$(cat /dev/urandom | head -n 32 | md5sum | head -c 32)"
-    # 尝试获取成功的结果
-    local result=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${1} -fsSL --max-time 10 "https://api.bilibili.com/pgc/player/web/playurl?avid=50762638&cid=100279344&qn=0&type=&otype=json&ep_id=268176&fourk=1&fnver=0&fnval=16&session=${randsession}&module=bangumi" 2>&1)
-    if [[ "$result" != "curl"* ]]; then
-        local result="$(echo "${result}" | python -m json.tool 2>/dev/null | grep '"code"' | head -1 | awk '{print $2}' | cut -d ',' -f1)"
-        if [ "${result}" = "0" ]; then
-            echo -n -e "\r Bilibili Taiwan Only:\t\t\t${Font_Green}Yes${Font_Suffix}\n"
-            modifyJsonTemplate 'BilibiliTW_result' 'Yes'
-        elif [ "${result}" = "-10403" ]; then
-            echo -n -e "\r Bilibili Taiwan Only:\t\t\t${Font_Red}No${Font_Suffix}\n"
-            modifyJsonTemplate 'BilibiliTW_result' 'No'
-        else
-            echo -n -e "\r Bilibili Taiwan Only:\t\t\t${Font_Red}Failed${Font_Suffix} ${Font_SkyBlue}(${result})${Font_Suffix}\n"
-            modifyJsonTemplate 'BilibiliTW_result' 'Unknow'
-        fi
-    else
-        echo -n -e "\r Bilibili Taiwan Only:\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
-        modifyJsonTemplate 'BilibiliTW_result' 'Unknow'
-    fi
-}
-
 MediaUnlockTest_AbemaTV_IPTest() {
     #
     local tempresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Dalvik}" -${1} -fsL --write-out %{http_code} --max-time 10 "https://api.abema.io/v1/ip/check?device=android" 2>&1)
@@ -486,12 +423,9 @@ createJsonTemplate() {
     "YouTube": "YouTube_Premium_result",
     "Netflix": "Netflix_result",
     "DisneyPlus": "DisneyPlus_result",
-    "BilibiliHKMCTW": "BilibiliHKMCTW_result",
-    "BilibiliTW": "BilibiliTW_result",
-    "MyTVSuper": "MyTVSuper_result",
+    "OpenAI": "OpenAI_result"，
     "BBC": "BBC_result",
-    "Abema": "AbemaTV_result",
-    "OpenAI": "OpenAI_result"
+    "Abema": "AbemaTV_result"
 }' > /root/media_test_tpl.json
 }
 
