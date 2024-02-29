@@ -423,7 +423,7 @@ createJsonTemplate() {
     "YouTube": "YouTube_Premium_result",
     "Netflix": "Netflix_result",
     "DisneyPlus": "DisneyPlus_result",
-    "OpenAI": "OpenAI_result"，
+    "OpenAI": "OpenAI_result",
     "BBC": "BBC_result",
     "Abema": "AbemaTV_result"
 }' > /root/media_test_tpl.json
