@@ -35,7 +35,7 @@ while getopts ":I:M:EX:P:" optname; do
         usePROXY="-x $proxy"
         ;;
     ":")
-        echo "Unknown error while processing options"
+        echo "Failedn error while processing options"
         exit 1
         ;;
     esac
@@ -227,7 +227,7 @@ MediaUnlockTest_BBCiPLAYER() {
         fi
     else
         echo -n -e "\r BBC iPLAYER:\t\t\t\t${Font_Red}Failed${Font_Suffix}\n"
-        modifyJsonTemplate 'BBC_result' 'Unknow'
+        modifyJsonTemplate 'BBC_result' 'Failed'
     fi
 }
 
@@ -246,7 +246,7 @@ MediaUnlockTest_AbemaTV_IPTest() {
             modifyJsonTemplate 'AbemaTV_result' 'Yes'
         else
             echo -n -e "\r Abema.TV:\t\t\t\t${Font_Yellow}Oversea Only${Font_Suffix}\n"
-            modifyJsonTemplate 'AbemaTV_result' 'Yes' 'Oversea Only'
+            modifyJsonTemplate 'AbemaTV_result' 'Oversea Only'
         fi
     else
         echo -n -e "\r Abema.TV:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
@@ -255,28 +255,27 @@ MediaUnlockTest_AbemaTV_IPTest() {
 }
 
 MediaUnlockTest_Netflix() {
-    local result1=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsL --write-out %{http_code} --output /dev/null --max-time 10 "https://www.netflix.com/title/81280792" 2>&1)
-    local result2=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsL --write-out %{http_code} --output /dev/null --max-time 10 "https://www.netflix.com/title/70143836" 2>&1)
+    local tmpresult1=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsL  --max-time 10 "https://www.netflix.com/title/81280792" 2>&1)
+    local tmpresult2=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsL  --max-time 10 "https://www.netflix.com/title/70143836" 2>&1)
+    local result1=$(echo $tmpresult1 | grep -oP '"isPlayable":\K(true|false)')
+    local result2=$(echo $tmpresult2 | grep -oP '"isPlayable":\K(true|false)')
 
-    if [[ "$result1" == "404" ]] && [[ "$result2" == "404" ]]; then
-        modifyJsonTemplate 'Netflix_result' 'No' 'Originals Only'
+    if [[ "$result1" == "false" ]] && [[ "$result2" == "false" ]]; then
+        modifyJsonTemplate 'Netflix_result' 'Originals Only'
         echo -n -e "\r Netflix:\t\t\t\t${Font_Yellow}Originals Only${Font_Suffix}\n"
         return
-    elif [[ "$result1" == "403" ]] && [[ "$result2" == "403" ]]; then
+    elif [ -z "$result1" ] && [ -z "$result2" ]; then
         echo -n -e "\r Netflix:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
         modifyJsonTemplate 'Netflix_result' 'No'
         return
-    elif [[ "$result1" == "200" ]] || [[ "$result2" == "200" ]]; then
-        local region=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fs --max-time 10 --write-out %{redirect_url} --output /dev/null "https://www.netflix.com/title/80018499" 2>&1 | cut -d '/' -f4 | cut -d '-' -f1 | tr [:lower:] [:upper:])
-        if [[ ! -n "$region" ]]; then
-            region="US"
-        fi
+    elif [[ "$result1" == "true" ]] || [[ "$result2" == "true" ]]; then
+        local region=$(echo $tmpresult1 | grep -oP '"requestCountry":{"id":"\K\w\w' | head -n 1)
         echo -n -e "\r Netflix:\t\t\t\t${Font_Green}Yes (Region: ${region})${Font_Suffix}\n"
         modifyJsonTemplate 'Netflix_result' 'Yes' "${region}"
         return
-    elif [[ "$result1" == "000" ]]; then
-        echo -n -e "\r Netflix:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
-        modifyJsonTemplate 'Netflix_result' 'Unknow'
+    else
+        echo -n -e "\r Netflix:\t\t\t\t${Font_Red}Failed${Font_Suffix}\n"
+        modifyJsonTemplate 'Netflix_result' 'Failed'
         return
     fi
 }
@@ -288,7 +287,7 @@ MediaUnlockTest_DisneyPlus() {
         return
     elif [[ "$PreAssertion" == "curl"* ]]; then
         echo -n -e "\r Disney+:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
-        modifyJsonTemplate 'DisneyPlus_result' 'Unknow'
+        modifyJsonTemplate 'DisneyPlus_result' 'Failed'
         return
     fi
 
@@ -336,7 +335,7 @@ MediaUnlockTest_DisneyPlus() {
         return
     else
         echo -n -e "\r Disney+:\t\t\t\t${Font_Red}Failed${Font_Suffix}\n"
-        modifyJsonTemplate 'DisneyPlus_result' 'Unknow'
+        modifyJsonTemplate 'DisneyPlus_result' 'Failed'
         return
     fi
 
@@ -347,7 +346,7 @@ MediaUnlockTest_YouTube_Premium() {
 
     if [[ "$tmpresult" == "curl"* ]]; then
         echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
-        modifyJsonTemplate 'YouTube_Premium_result' 'Unknow'
+        modifyJsonTemplate 'YouTube_Premium_result' 'Failed'
         return
     fi
 
@@ -375,7 +374,7 @@ MediaUnlockTest_YouTube_Premium() {
         return
     else
         echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}Failed${Font_Suffix}\n"
-        modifyJsonTemplate 'YouTube_Premium_result' 'Unknow'
+        modifyJsonTemplate 'YouTube_Premium_result' 'Failed'
     fi
 }
 
@@ -422,7 +421,7 @@ createJsonTemplate() {
     echo '{
     "YouTube": "YouTube_Premium_result",
     "Netflix": "Netflix_result",
-    "DisneyPlus": "DisneyPlus_result",
+    "Disney+": "DisneyPlus_result",
     "OpenAI": "OpenAI_result",
     "BBC": "BBC_result",
     "Abema": "AbemaTV_result"
