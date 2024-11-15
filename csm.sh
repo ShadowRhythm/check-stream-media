@@ -650,11 +650,11 @@ if [[ -n "$3" ]]; then
     # 如果字段3有值
     if [[ -n "$4" ]]; then
         # 如果字段4也有值
-        if [[ "$4" == "naive" ]]; then
-            # 如果字段4的值是 "naive"，隐藏字段4的值
+        if [[ "$4" == "Native" ]]; then
+            # 如果字段4的值是 "Native"，隐藏字段4的值
             sed -i "s#${key_word}#${result} (${region})#g" /root/media_test_tpl.json
         else
-            # 如果字段4有值但不是 "naive"
+            # 如果字段4有值但不是 "Native"
             sed -i "s#${key_word}#${result} (${region}) (${resultunlocktype})#g" /root/media_test_tpl.json
         fi
     else
@@ -665,11 +665,11 @@ else
     # 如果字段3没有值
     if [[ -n "$4" ]]; then
         # 如果字段4有值
-        if [[ "$4" == "naive" ]]; then
-            # 如果字段4的值是 "naive"，隐藏字段4的值
+        if [[ "$4" == "Native" ]]; then
+            # 如果字段4的值是 "Native"，隐藏字段4的值
             sed -i "s#${key_word}#${result}#g" /root/media_test_tpl.json
         else
-            # 如果字段4有值但不是 "naive"
+            # 如果字段4有值但不是 "Native"
             sed -i "s#${key_word}#${result} (${resultunlocktype})#g" /root/media_test_tpl.json
         fi
     else
