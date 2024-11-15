@@ -203,6 +203,184 @@ ShowRegion() {
     echo -e "${Font_Yellow} ---${1}---${Font_Suffix}"
 }
 
+
+function check_ip_valide()
+{
+    local IPPattern='^(\<([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\>\.){3}\<([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\>$'
+    IP="$1"
+    for special_ip in ${special_ips[@]}
+    do
+         local ret=$(echo $IP | grep ${special_ip})
+         if [ -n "$ret" ];then
+             return 1
+         fi
+    done
+    if [[ "${IP}" =~ ${IPPattern} ]]; then
+        return 0
+    else
+        return 1
+    fi
+ 
+}
+function calc_ip_net()
+{
+   sip="$1"
+   snetmask="$2"
+ 
+   check_ip_valide "$sip"
+   if [ $? -ne 0 ];then echo "";return 1;fi
+ 
+   local ipFIELD1=$(echo "$sip" |cut -d. -f1)
+   local ipFIELD2=$(echo "$sip" |cut -d. -f2)
+   local ipFIELD3=$(echo "$sip" |cut -d. -f3)
+   local ipFIELD4=$(echo "$sip" |cut -d. -f4)
+         
+   local netmaskFIELD1=$(echo "$snetmask" |cut -d. -f1)
+   local netmaskFIELD2=$(echo "$snetmask" |cut -d. -f2)
+   local netmaskFIELD3=$(echo "$snetmask" |cut -d. -f3)
+   local netmaskFIELD4=$(echo "$snetmask" |cut -d. -f4)
+ 
+   local tmpret1=$[$ipFIELD1&$netmaskFIELD1]
+   local tmpret2=$[$ipFIELD2&$netmaskFIELD2]
+   local tmpret3=$[$ipFIELD3&$netmaskFIELD3]
+   local tmpret4=$[$ipFIELD4&$netmaskFIELD4]
+    
+   echo "$tmpret1.$tmpret2.$tmpret3.$tmpret4"
+}   
+
+function Check_DNS_IP()
+{
+    if [ "$1" != "${1#*[0-9].[0-9]}" ]; then
+        if [ "$(calc_ip_net "$1" 255.0.0.0)" == "10.0.0.0" ];then
+            echo 0
+        elif [ "$(calc_ip_net "$1" 255.240.0.0)" == "172.16.0.0" ];then
+            echo 0
+        elif [ "$(calc_ip_net "$1" 255.255.0.0)" == "169.254.0.0" ];then
+            echo 0
+        elif [ "$(calc_ip_net "$1" 255.255.0.0)" == "192.168.0.0" ];then
+            echo 0
+        elif [ "$(calc_ip_net "$1" 255.255.255.0)" == "$(calc_ip_net "$2" 255.255.255.0)" ];then
+            echo 0
+        else
+            echo 1
+        fi
+    elif [ "$1" != "${1#*[0-9a-fA-F]:*}" ]; then
+        if [ "${1:0:3}" == "fe8" ];then
+            echo 0
+        elif [ "${1:0:3}" == "FE8" ];then
+            echo 0
+        elif [ "${1:0:2}" == "fc" ];then
+            echo 0
+        elif [ "${1:0:2}" == "FC" ];then
+            echo 0
+        elif [ "${1:0:2}" == "fd" ];then
+            echo 0
+        elif [ "${1:0:2}" == "FD" ];then
+            echo 0
+        elif [ "${1:0:2}" == "ff" ];then
+            echo 0
+        elif [ "${1:0:2}" == "FF" ];then
+            echo 0
+        else
+            echo 1
+        fi
+    else
+        echo 0
+    fi
+}
+
+function Check_Private_IP()
+{
+    if [ "$1" != "${1#*[0-9].[0-9]}" ]; then
+        if [ "$(calc_ip_net "$1" 255.0.0.0)" == "10.0.0.0" ];then
+            echo 0
+        elif [ "$(calc_ip_net "$1" 255.240.0.0)" == "172.16.0.0" ];then
+            echo 0
+        elif [ "$(calc_ip_net "$1" 255.255.0.0)" == "169.254.0.0" ];then
+            echo 0
+        elif [ "$(calc_ip_net "$1" 255.255.0.0)" == "192.168.0.0" ];then
+            echo 0
+        else
+            echo 1
+        fi
+    elif [ "$1" != "${1#*[0-9a-fA-F]:*}" ]; then
+        if [ "${1:0:3}" == "fe8" ];then
+            echo 0
+        elif [ "${1:0:3}" == "FE8" ];then
+            echo 0
+        elif [ "${1:0:2}" == "fc" ];then
+            echo 0
+        elif [ "${1:0:2}" == "FC" ];then
+            echo 0
+        elif [ "${1:0:2}" == "fd" ];then
+            echo 0
+        elif [ "${1:0:2}" == "FD" ];then
+            echo 0
+        elif [ "${1:0:2}" == "ff" ];then
+            echo 0
+        elif [ "${1:0:2}" == "FF" ];then
+            echo 0
+        else
+            echo 1
+        fi
+    else
+        echo 0
+    fi
+}
+
+function Check_DNS_1()
+{
+    local resultdns=$(nslookup $1)
+    local resultinlines=(${resultdns//$'\n'/ })
+    for i in ${resultinlines[*]}
+    do
+        if [[ "$i" == "Name:" ]]; then
+            local resultdnsindex=$(( $resultindex + 3 ))
+            break
+        fi
+        local resultindex=$(( $resultindex + 1 ))
+    done
+    echo `Check_DNS_IP ${resultinlines[$resultdnsindex]} ${resultinlines[1]}`
+}
+
+function Check_DNS_2()
+{
+    local resultdnstext=$(dig $1 | grep "ANSWER:")
+    local resultdnstext=${resultdnstext#*"ANSWER: "}
+    local resultdnstext=${resultdnstext%", AUTHORITY:"*}
+    if [ "${resultdnstext}" == "0" ] || [ "${resultdnstext}" == "1" ] || [ "${resultdnstext}" == "2" ];then
+        echo 0
+    else
+        echo 1
+    fi
+}
+
+function Check_DNS_3()
+{
+    local resultdnstext=$(dig "test$RANDOM$RANDOM.${1}" | grep "ANSWER:")
+    echo "test$RANDOM$RANDOM.${1}"
+    local resultdnstext=${resultdnstext#*"ANSWER: "}
+    local resultdnstext=${resultdnstext%", AUTHORITY:"*}
+    if [ "${resultdnstext}" == "0" ];then
+        echo 1
+    else
+        echo 0
+    fi
+}
+
+function Get_Unlock_Type()
+{
+		    while [ $# -ne 0 ]
+		    do
+		        if [ "$1" = "0" ];then
+		            echo "Via DNS"
+		            return
+		        fi
+		        shift
+		    done
+		    echo "Native"
+}
+
 ###########################################
 #                                         #
 #           required check item           #
@@ -255,21 +433,34 @@ MediaUnlockTest_AbemaTV_IPTest() {
 }
 
 MediaUnlockTest_Netflix() {
-    local result1=$(curl $useNIC $usePROXY $xForward -${1} -fsL --write-out %{http_code} --output /dev/null --max-time 10 "https://www.netflix.com/title/81280792" -H 'host: www.netflix.com' -H 'connection: keep-alive' -H 'sec-ch-ua: "Chromium";v="122", "Not(A:Brand";v="24", "Microsoft Edge";v="122"' -H 'sec-ch-ua-mobile: ?0' -H 'sec-ch-ua-platform: "Windows"' -H 'upgrade-insecure-requests: 1' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0' -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' -H 'sec-fetch-site: none' -H 'sec-fetch-mode: navigate' -H 'sec-fetch-user: ?1' -H 'sec-fetch-dest: document' -H 'accept-language: zh-CN,zh;q=0.9' 2>&1)
-    local result2=$(curl $useNIC $usePROXY $xForward -${1} -fsL --write-out %{http_code} --output /dev/null --max-time 10 "https://www.netflix.com/title/70143836" -H 'host: www.netflix.com' -H 'connection: keep-alive' -H 'sec-ch-ua: "Chromium";v="122", "Not(A:Brand";v="24", "Microsoft Edge";v="122"' -H 'sec-ch-ua-mobile: ?0' -H 'sec-ch-ua-platform: "Windows"' -H 'upgrade-insecure-requests: 1' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0' -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' -H 'sec-fetch-site: none' -H 'sec-fetch-mode: navigate' -H 'sec-fetch-user: ?1' -H 'sec-fetch-dest: document' -H 'accept-language: zh-CN,zh;q=0.9' 2>&1)
-
+    local checkunlockurl="netflix.com"
+    local result1=`Check_DNS_1 ${checkunlockurl}`
+    local result2=`Check_DNS_2 ${checkunlockurl}`
+    local result3=`Check_DNS_3 ${checkunlockurl}`
+    local resultunlocktype=`Get_Unlock_Type ${resultP} ${result1} ${result2} ${result3}`
+	
+    local result1=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsLI -X GET --write-out %{http_code} --output /dev/null --max-time 10 --tlsv1.3 "https://www.netflix.com/title/81280792"  2>&1)
+    local result2=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsLI -X GET --write-out %{http_code} --output /dev/null --max-time 10 --tlsv1.3 "https://www.netflix.com/title/70143836" 2>&1)
+    local regiontmp=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fSsI -X GET --max-time 10 --write-out %{redirect_url} --output /dev/null --tlsv1.3 "https://www.netflix.com/login" 2>&1 )
+    if [[ "$regiontmp" == "curl"* ]]; then
+        echo -n -e "\r Netflix:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
+        return
+    fi
+    local region=$(echo $regiontmp | cut -d '/' -f4 | cut -d '-' -f1 | tr [:lower:] [:upper:])
+    if [[ ! -n "$region" ]]; then
+        region="US"
+    fi
     if [[ "$result1" == "404" ]] && [[ "$result2" == "404" ]]; then
         modifyJsonTemplate 'Netflix_result' 'Originals Only'
-        echo -n -e "\r Netflix:\t\t\t\t${Font_Yellow}Originals Only${Font_Suffix}\n"
+        echo -n -e "\r Netflix:\t\t\t${resultunlocktype}\t${Font_Yellow}Originals Only${Font_Suffix}\n" "${resultunlocktype}"
         return
     elif [[ "$result1" == "403" ]] && [[ "$result2" == "403" ]]; then
         echo -n -e "\r Netflix:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
         modifyJsonTemplate 'Netflix_result' 'No'
         return
     elif [[ "$result1" == "200" ]] || [[ "$result2" == "200" ]]; then
-        local region=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsL --max-time 10 "https://www.netflix.com/title/70143836" 2>&1 | grep -oP '"requestCountry":{"id":"\K\w\w' | head -n 1)
-        echo -n -e "\r Netflix:\t\t\t\t${Font_Green}Yes (Region: ${region})${Font_Suffix}\n"
-        modifyJsonTemplate 'Netflix_result' 'Yes' "${region}"
+        echo -n -e "\r Netflix:\t\t\t${resultunlocktype}\t${Font_Green}Yes (Region: ${region})${Font_Suffix}\n"
+        modifyJsonTemplate 'Netflix_result' 'Yes' "${region}" "${resultunlocktype}"
         return
     else
         echo -n -e "\r Netflix:\t\t\t\t${Font_Red}Failed${Font_Suffix}\n"
@@ -279,6 +470,11 @@ MediaUnlockTest_Netflix() {
 }
 
 MediaUnlockTest_DisneyPlus() {
+    local checkunlockurl="disneyplus.com"
+    local result1=`Check_DNS_1 ${checkunlockurl}`
+    local result3=`Check_DNS_3 ${checkunlockurl}`
+    local resultunlocktype=`Get_Unlock_Type ${resultP} ${result1} ${result3}`
+	
     local PreAssertion=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -s --max-time 10 -X POST "https://disney.api.edge.bamgrid.com/devices" -H "authorization: Bearer ZGlzbmV5JmJyb3dzZXImMS4wLjA.Cu56AgSfBTDag5NiRA81oLHkDZfu5L3CKadnefEAY84" -H "content-type: application/json; charset=UTF-8" -d '{"deviceFamily":"browser","applicationRuntime":"chrome","deviceProfile":"windows","attributes":{}}' 2>&1)
     if [[ "$PreAssertion" == "curl"* ]] && [[ "$1" == "6" ]]; then
         echo -n -e "\r Disney+:\t\t\t\t${Font_Red}IPv6 Not Support${Font_Suffix}\n"
@@ -312,20 +508,20 @@ MediaUnlockTest_DisneyPlus() {
     local inSupportedLocation=$(echo $tmpresult | python -m json.tool 2>/dev/null | grep 'inSupportedLocation' | awk '{print $2}' | cut -f1 -d',')
 
     if [[ "$region" == "JP" ]]; then
-        echo -n -e "\r Disney+:\t\t\t\t${Font_Green}Yes (Region: JP)${Font_Suffix}\n"
-        modifyJsonTemplate 'DisneyPlus_result' 'Yes' 'JP'
+        echo -n -e "\r Disney+:\t\t\t${resultunlocktype}\t${Font_Green}Yes (Region: JP)${Font_Suffix}\n"
+        modifyJsonTemplate 'DisneyPlus_result' 'Yes' 'JP' "${resultunlocktype}"
         return
     elif [ -n "$region" ] && [[ "$inSupportedLocation" == "false" ]] && [ -z "$isUnabailable" ]; then
-        echo -n -e "\r Disney+:\t\t\t\t${Font_Yellow}Available For [Disney+ $region] Soon${Font_Suffix}\n"
-        modifyJsonTemplate 'DisneyPlus_result' 'No'
+        echo -n -e "\r Disney+:\t\t\t${resultunlocktype}\t${Font_Yellow}Available For [Disney+ $region] Soon${Font_Suffix}\n"
+        modifyJsonTemplate 'DisneyPlus_result' 'No' "${resultunlocktype}"
         return
     elif [ -n "$region" ] && [ -n "$isUnavailable" ]; then
         echo -n -e "\r Disney+:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
         modifyJsonTemplate 'DisneyPlus_result' 'No'
         return
     elif [ -n "$region" ] && [[ "$inSupportedLocation" == "true" ]]; then
-        echo -n -e "\r Disney+:\t\t\t\t${Font_Green}Yes (Region: $region)${Font_Suffix}\n"
-        modifyJsonTemplate 'DisneyPlus_result' 'Yes' "${region}"
+        echo -n -e "\r Disney+:\t\t\t${resultunlocktype}\t${Font_Green}Yes (Region: $region)${Font_Suffix}\n"
+        modifyJsonTemplate 'DisneyPlus_result' 'Yes' "${region}" "${resultunlocktype}"
         return
     elif [ -z "$region" ]; then
         echo -n -e "\r Disney+:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
@@ -340,6 +536,11 @@ MediaUnlockTest_DisneyPlus() {
 }
 
 MediaUnlockTest_YouTube_Premium() {
+    local checkunlockurl="www.youtube.com"
+    local result1=`Check_DNS_1 ${checkunlockurl}`
+    local result3=`Check_DNS_3 ${checkunlockurl}`
+    local resultunlocktype=`Get_Unlock_Type ${resultP} ${result1} ${result3}`	
+
     local tmpresult=$(curl $useNIC $usePROXY $xForward -${1} --max-time 10 -sSL -H "Accept-Language: en" -b "YSC=BiCUU3-5Gdk; CONSENT=YES+cb.20220301-11-p0.en+FX+700; GPS=1; VISITOR_INFO1_LIVE=4VwPMkB7W5A; PREF=tz=Asia.Shanghai; _gcl_au=1.1.1809531354.1646633279" "https://www.youtube.com/premium" 2>&1)
 
     if [[ "$tmpresult" == "curl"* ]]; then
@@ -363,12 +564,12 @@ MediaUnlockTest_YouTube_Premium() {
         modifyJsonTemplate 'YouTube_Premium_result' 'No'
         return
     elif [ -n "$isAvailable" ] && [ -n "$region" ]; then
-        echo -n -e "\r YouTube Premium:\t\t\t${Font_Green}Yes (Region: $region)${Font_Suffix}\n"
-        modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${region}"
+        echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes (Region: $region)${Font_Suffix}\n"
+        modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${region}" "${resultunlocktype}"
         return
     elif [ -z "$region" ] && [ -n "$isAvailable" ]; then
-        echo -n -e "\r YouTube Premium:\t\t\t${Font_Green}Yes${Font_Suffix}\n"
-        modifyJsonTemplate 'YouTube_Premium_result' 'Yes'
+        echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes${Font_Suffix}\n"
+        modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${resultunlocktype}"
         return
     else
         echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}Failed${Font_Suffix}\n"
@@ -377,24 +578,37 @@ MediaUnlockTest_YouTube_Premium() {
 }
 
 OpenAITest(){
+    local checkunlockurl="chat.openai.com"
+    local result1=`Check_DNS_1 ${checkunlockurl}`
+    local result2=`Check_DNS_2 ${checkunlockurl}`
+    local result3=`Check_DNS_3 ${checkunlockurl}`
+    local checkunlockurl="ios.chat.openai.com"
+    local result4=`Check_DNS_1 ${checkunlockurl}`
+    local result5=`Check_DNS_2 ${checkunlockurl}`
+    local result6=`Check_DNS_3 ${checkunlockurl}`
+    local checkunlockurl="api.openai.com"
+    local result7=`Check_DNS_1 ${checkunlockurl}`
+    local result8=`Check_DNS_3 ${checkunlockurl}`
+    local resultunlocktype=`Get_Unlock_Type ${resultP} ${result1} ${result2} ${result3} ${result4} ${result5} ${result6} ${result7} ${result8}`
+    
     local tmpresult1=$(curl $useNIC $usePROXY $xForward -${1} ${ssll} -sS --max-time 10 'https://api.openai.com/compliance/cookie_requirements'   -H 'authority: api.openai.com'   -H 'accept: */*'   -H 'accept-language: zh-CN,zh;q=0.9'   -H 'authorization: Bearer null'   -H 'content-type: application/json'   -H 'origin: https://platform.openai.com'   -H 'referer: https://platform.openai.com/'   -H 'sec-ch-ua: "Microsoft Edge";v="119", "Chromium";v="119", "Not?A_Brand";v="24"'   -H 'sec-ch-ua-mobile: ?0'   -H 'sec-ch-ua-platform: "Windows"'   -H 'sec-fetch-dest: empty'   -H 'sec-fetch-mode: cors'   -H 'sec-fetch-site: same-site'   -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0' 2>&1)
     local tmpresult2=$(curl $useNIC $usePROXY $xForward -${1} ${ssll} -sS --max-time 10 'https://ios.chat.openai.com/' -H 'authority: ios.chat.openai.com'   -H 'accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'   -H 'accept-language: zh-CN,zh;q=0.9' -H 'sec-ch-ua: "Microsoft Edge";v="119", "Chromium";v="119", "Not?A_Brand";v="24"'   -H 'sec-ch-ua-mobile: ?0'   -H 'sec-ch-ua-platform: "Windows"'   -H 'sec-fetch-dest: document'   -H 'sec-fetch-mode: navigate'   -H 'sec-fetch-site: none'   -H 'sec-fetch-user: ?1'   -H 'upgrade-insecure-requests: 1'   -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0' 2>&1)
     local result1=$(echo $tmpresult1 | grep unsupported_country)
     local result2=$(echo $tmpresult2 | grep VPN)
     if [ -z "$result2" ] && [ -z "$result1" ] && [[ "$tmpresult1" != "curl"* ]] && [[ "$tmpresult2" != "curl"* ]]; then
-        echo -n -e "\r ChatGPT:\t\t\t\t${Font_Green}Yes${Font_Suffix}\n"
-        modifyJsonTemplate 'OpenAI_result' 'Yes'
+        echo -n -e "\r ChatGPT:\t\t\t${resultunlocktype}\t${Font_Green}Yes${Font_Suffix}\n"
+        modifyJsonTemplate 'OpenAI_result' 'Yes' "${resultunlocktype}"
         return
     elif [ -n "$result2" ] && [ -n "$result1" ]; then
         echo -n -e "\r ChatGPT:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
         modifyJsonTemplate 'OpenAI_result' 'No'
         return
     elif [ -z "$result1" ] && [ -n "$result2" ] && [[ "$tmpresult1" != "curl"* ]]; then
-        echo -n -e "\r ChatGPT:\t\t\t\t${Font_Yellow}Only Available with Web Browser${Font_Suffix}\n"
+        echo -n -e "\r ChatGPT:\t\t\t${resultunlocktype}\t${Font_Yellow}Only Available with Web Browser${Font_Suffix}\n"
         modifyJsonTemplate 'OpenAI_result' 'Only Web'
        return
     elif [ -n "$result1" ] && [ -z "$result2" ]; then
-        echo -n -e "\r ChatGPT:\t\t\t\t${Font_Yellow}Only Available with Mobile APP${Font_Suffix}\n"
+        echo -n -e "\r ChatGPT:\t\t\t${resultunlocktype}\t${Font_Yellow}Only Available with Mobile APP${Font_Suffix}\n"
         modifyJsonTemplate 'OpenAI_result' 'Only APP'
         return
     elif [[ "$tmpresult1" == "curl"* ]] && [ -n "$result2" ]; then
@@ -430,12 +644,25 @@ modifyJsonTemplate() {
     key_word=$1
     result=$2
     region=$3
+    resultunlocktype=$4
 
-    if [[ "$3" == "" ]]; then
+if [[ -z "$3" ]]; then
+    if [[ -z "$4" ]]; then
+        # 如果字段3和字段4都为空
         sed -i "s#${key_word}#${result}#g" /root/media_test_tpl.json
     else
-        sed -i "s#${key_word}#${result} (${region})#g" /root/media_test_tpl.json
+        # 如果字段3为空，字段4不为空
+        sed -i "s#${key_word}#${result} (${resultunlocktype})#g" /root/media_test_tpl.json
     fi
+else
+    if [[ -z "$4" ]]; then
+        # 如果字段3不为空，字段4为空
+        sed -i "s#${key_word}#${result} (${region})#g" /root/media_test_tpl.json
+    else
+        # 如果字段3和字段4都不为空
+        sed -i "s#${key_word}#${result} (${region}) (${resultunlocktype})#g" /root/media_test_tpl.json
+    fi
+fi
 }
 
 setCronTask() {
@@ -549,9 +776,9 @@ runCheck() {
     createJsonTemplate
     MediaUnlockTest_BBCiPLAYER 4
     MediaUnlockTest_AbemaTV_IPTest 4
-    MediaUnlockTest_Netflix 6
-    MediaUnlockTest_YouTube_Premium 6
-    MediaUnlockTest_DisneyPlus 6
+    MediaUnlockTest_Netflix 4
+    MediaUnlockTest_YouTube_Premium 4
+    MediaUnlockTest_DisneyPlus 4
     OpenAITest 4
 }
 
