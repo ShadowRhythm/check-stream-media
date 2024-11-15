@@ -373,7 +373,7 @@ function Get_Unlock_Type()
 		    while [ $# -ne 0 ]
 		    do
 		        if [ "$1" = "0" ];then
-		            echo "Via DNS"
+		            echo "DNS"
 		            return
 		        fi
 		        shift
