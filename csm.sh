@@ -513,7 +513,7 @@ MediaUnlockTest_DisneyPlus() {
         return
     elif [ -n "$region" ] && [[ "$inSupportedLocation" == "false" ]] && [ -z "$isUnabailable" ]; then
         echo -n -e "\r Disney+:\t\t\t${resultunlocktype}\t${Font_Yellow}Available For [Disney+ $region] Soon${Font_Suffix}\n"
-        modifyJsonTemplate 'DisneyPlus_result' 'No' "${resultunlocktype}"
+        modifyJsonTemplate 'DisneyPlus_result' 'No'
         return
     elif [ -n "$region" ] && [ -n "$isUnavailable" ]; then
         echo -n -e "\r Disney+:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
