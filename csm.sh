@@ -497,17 +497,32 @@ MediaUnlockTest_AbemaTV_IPTest() {
 }
 
 MediaUnlockTest_Netflix() {
+    local family=${1:-6}
+    if [ "${family}" = "6" ] && [ -z "${local_ipv6}" ]; then
+        family=4
+    fi
+
     local checkunlockurl="netflix.com"
     local result1=`Check_DNS_1 ${checkunlockurl}`
     local result2=`Check_DNS_2 ${checkunlockurl}`
     local result3=`Check_DNS_3 ${checkunlockurl}`
     local resultunlocktype=`Get_Unlock_Type ${resultP} ${result1} ${result2} ${result3}`
 	
-    local result1=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsLI -X GET --write-out %{http_code} --output /dev/null --max-time 10 --tlsv1.3 "https://www.netflix.com/title/81280792"  2>&1)
-    local result2=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fsLI -X GET --write-out %{http_code} --output /dev/null --max-time 10 --tlsv1.3 "https://www.netflix.com/title/70143836" 2>&1)
-    local regiontmp=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -fSsI -X GET --max-time 10 --write-out %{redirect_url} --output /dev/null --tlsv1.3 "https://www.netflix.com/login" 2>&1 )
+    local result1=$(curl $useNIC $usePROXY $xForward -${family} --user-agent "${UA_Browser}" -fsLI -X GET --write-out %{http_code} --output /dev/null --max-time 10 --tlsv1.3 "https://www.netflix.com/title/81280792" 2>&1)
+    local result2=$(curl $useNIC $usePROXY $xForward -${family} --user-agent "${UA_Browser}" -fsLI -X GET --write-out %{http_code} --output /dev/null --max-time 10 --tlsv1.3 "https://www.netflix.com/title/70143836" 2>&1)
+    local regiontmp=$(curl $useNIC $usePROXY $xForward -${family} --user-agent "${UA_Browser}" -fSsI -X GET --max-time 10 --write-out %{redirect_url} --output /dev/null --tlsv1.3 "https://www.netflix.com/login" 2>&1)
+    
+    # v6 优先，如果连接失败且存在 v4，自动回落到 v4 检测
+    if [[ "$regiontmp" == "curl"* ]] && [ "${family}" = "6" ] && [ -n "${local_ipv4}" ]; then
+        family=4
+        result1=$(curl $useNIC $usePROXY $xForward -4 --user-agent "${UA_Browser}" -fsLI -X GET --write-out %{http_code} --output /dev/null --max-time 10 --tlsv1.3 "https://www.netflix.com/title/81280792" 2>&1)
+        result2=$(curl $useNIC $usePROXY $xForward -4 --user-agent "${UA_Browser}" -fsLI -X GET --write-out %{http_code} --output /dev/null --max-time 10 --tlsv1.3 "https://www.netflix.com/title/70143836" 2>&1)
+        regiontmp=$(curl $useNIC $usePROXY $xForward -4 --user-agent "${UA_Browser}" -fSsI -X GET --max-time 10 --write-out %{redirect_url} --output /dev/null --tlsv1.3 "https://www.netflix.com/login" 2>&1)
+    fi
+
     if [[ "$regiontmp" == "curl"* ]]; then
         echo -n -e "\r Netflix:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
+        modifyJsonTemplate 'Netflix_result' 'Failed'
         return
     fi
     local region=$(echo $regiontmp | cut -d '/' -f4 | cut -d '-' -f1 | tr [:lower:] [:upper:])
@@ -534,14 +549,27 @@ MediaUnlockTest_Netflix() {
 }
 
 MediaUnlockTest_DisneyPlus() {
+    local family=${1:-6}
+    if [ "${family}" = "6" ] && [ -z "${local_ipv6}" ]; then
+        family=4
+    fi
+
     local checkunlockurl="disneyplus.com"
     local result1=`Check_DNS_1 ${checkunlockurl}`
     local result3=`Check_DNS_3 ${checkunlockurl}`
     local resultunlocktype=`Get_Unlock_Type ${resultP} ${result1} ${result3}`
 	
-    local PreAssertion=$(curl $useNIC $usePROXY $xForward -${1} --user-agent "${UA_Browser}" -s --max-time 10 -X POST "https://disney.api.edge.bamgrid.com/devices" -H "authorization: Bearer ZGlzbmV5JmJyb3dzZXImMS4wLjA.Cu56AgSfBTDag5NiRA81oLHkDZfu5L3CKadnefEAY84" -H "content-type: application/json; charset=UTF-8" -d '{"deviceFamily":"browser","applicationRuntime":"chrome","deviceProfile":"windows","attributes":{}}' 2>&1)
-    if [[ "$PreAssertion" == "curl"* ]] && [[ "$1" == "6" ]]; then
+    local PreAssertion=$(curl $useNIC $usePROXY $xForward -${family} --user-agent "${UA_Browser}" -s --max-time 10 -X POST "https://disney.api.edge.bamgrid.com/devices" -H "authorization: Bearer ZGlzbmV5JmJyb3dzZXImMS4wLjA.Cu56AgSfBTDag5NiRA81oLHkDZfu5L3CKadnefEAY84" -H "content-type: application/json; charset=UTF-8" -d '{"deviceFamily":"browser","applicationRuntime":"chrome","deviceProfile":"windows","attributes":{}}' 2>&1)
+    
+    # v6 优先，如果连接失败且存在 v4，自动回落到 v4 检测
+    if [[ "$PreAssertion" == "curl"* ]] && [ "${family}" = "6" ] && [ -n "${local_ipv4}" ]; then
+        family=4
+        PreAssertion=$(curl $useNIC $usePROXY $xForward -4 --user-agent "${UA_Browser}" -s --max-time 10 -X POST "https://disney.api.edge.bamgrid.com/devices" -H "authorization: Bearer ZGlzbmV5JmJyb3dzZXImMS4wLjA.Cu56AgSfBTDag5NiRA81oLHkDZfu5L3CKadnefEAY84" -H "content-type: application/json; charset=UTF-8" -d '{"deviceFamily":"browser","applicationRuntime":"chrome","deviceProfile":"windows","attributes":{}}' 2>&1)
+    fi
+
+    if [[ "$PreAssertion" == "curl"* ]] && [[ "$family" == "6" ]]; then
         echo -n -e "\r Disney+:\t\t\t\t${Font_Red}IPv6 Not Support${Font_Suffix}\n"
+        modifyJsonTemplate 'DisneyPlus_result' 'Failed'
         return
     elif [[ "$PreAssertion" == "curl"* ]]; then
         echo -n -e "\r Disney+:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
@@ -600,15 +628,29 @@ MediaUnlockTest_DisneyPlus() {
 }
 
 MediaUnlockTest_YouTube_Premium() {
+    local family=${1:-6}
+    if [ "${family}" = "6" ] && [ -z "${local_ipv6}" ]; then
+        family=4
+    fi
+
     local checkunlockurl="www.youtube.com"
     local result1=`Check_DNS_1 ${checkunlockurl}`
     local result3=`Check_DNS_3 ${checkunlockurl}`
     local resultunlocktype=`Get_Unlock_Type ${resultP} ${result1} ${result3}`	
 
-    local tmpresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${1} ${ssll} --max-time 15 -sSL \
+    local tmpresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${family} ${ssll} --max-time 15 -sSL \
         -H 'accept-language: en-US,en;q=0.9' \
         -H 'cookie: YSC=FSCWhKo2Zgw; VISITOR_PRIVACY_METADATA=CgJERRIEEgAgYQ%3D%3D; PREF=f7=4000; __Secure-YEC=CgtRWTBGTFExeV9Iayjele2yBjIKCgJERRIEEgAgYQ%3D%3D; SOCS=CAISOAgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwNTI2LjAxX3AwGgV6aC1DTiACGgYIgMnpsgY; VISITOR_INFO1_LIVE=Di84mAIbgKY; __Secure-BUCKET=CGQ' \
         "https://www.youtube.com/premium" 2>&1)
+
+    # v6 优先，如果连接失败且存在 v4，自动回落到 v4 检测
+    if ([ -z "$tmpresult" ] || [[ "$tmpresult" == "curl"* ]]) && [ "${family}" = "6" ] && [ -n "${local_ipv4}" ]; then
+        family=4
+        tmpresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -4 ${ssll} --max-time 15 -sSL \
+            -H 'accept-language: en-US,en;q=0.9' \
+            -H 'cookie: YSC=FSCWhKo2Zgw; VISITOR_PRIVACY_METADATA=CgJERRIEEgAgYQ%3D%3D; PREF=f7=4000; __Secure-YEC=CgtRWTBGTFExeV9Iayjele2yBjIKCgJERRIEEgAgYQ%3D%3D; SOCS=CAISOAgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwNTI2LjAxX3AwGgV6aC1DTiACGgYIgMnpsgY; VISITOR_INFO1_LIVE=Di84mAIbgKY; __Secure-BUCKET=CGQ' \
+            "https://www.youtube.com/premium" 2>&1)
+    fi
 
     if [ -z "$tmpresult" ] || [[ "$tmpresult" == "curl"* ]]; then
         echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
@@ -661,10 +703,22 @@ MediaUnlockTest_YouTube_Premium() {
 }
 
 MediaUnlockTest_Gemini() {
+    local family=${1:-6}
+    if [ "${family}" = "6" ] && [ -z "${local_ipv6}" ]; then
+        family=4
+    fi
+
     local page="/tmp/gemini_page.html"
     rm -f "${page}"
-    curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${1} ${ssll} -sL --max-time 25 \
+    curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${family} ${ssll} -sL --max-time 25 \
         -o "${page}" "https://gemini.google.com" 2>/dev/null
+
+    # v6 优先，如果连接失败且存在 v4，自动回落到 v4 检测
+    if [ ! -s "${page}" ] && [ "${family}" = "6" ] && [ -n "${local_ipv4}" ]; then
+        family=4
+        curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -4 ${ssll} -sL --max-time 25 \
+            -o "${page}" "https://gemini.google.com" 2>/dev/null
+    fi
 
     if [ ! -s "${page}" ]; then
         rm -f "${page}"
@@ -1049,13 +1103,13 @@ printInfo() {
 
 runCheck() {
     createJsonTemplate
-    MediaUnlockTest_BBCiPLAYER ${NetworkType:-4}
-    MediaUnlockTest_AbemaTV_IPTest ${NetworkType:-4}
-    MediaUnlockTest_Netflix ${NetworkType:-4}
-    MediaUnlockTest_YouTube_Premium ${NetworkType:-4}
-    MediaUnlockTest_DisneyPlus ${NetworkType:-4}
-    OpenAITest ${NetworkType:-4}
-    MediaUnlockTest_Gemini ${NetworkType:-4}
+    MediaUnlockTest_BBCiPLAYER 4
+    MediaUnlockTest_AbemaTV_IPTest 4
+    MediaUnlockTest_Netflix 6
+    MediaUnlockTest_YouTube_Premium 6
+    MediaUnlockTest_DisneyPlus 6
+    OpenAITest 4
+    MediaUnlockTest_Gemini 6
     MediaUnlockTest_IPAttribute
     MediaUnlockTest_GoogleRegion
 }
