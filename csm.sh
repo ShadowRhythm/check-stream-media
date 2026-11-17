@@ -60,8 +60,72 @@ if ! mktemp -u --suffix=RRC &>/dev/null; then
     is_busybox=1
 fi
 
-UA_Browser="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.87 Safari/537.36"
+UA_Browser="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 UA_Dalvik="Dalvik/2.1.0 (Linux; U; Android 9; ALP-AL00 Build/HUAWEIALP-AL00)"
+
+if echo 'a' | grep -P 'a' >/dev/null 2>&1; then
+    HAS_PCRE=1
+else
+    HAS_PCRE=0
+fi
+
+grep_json_value() {
+    local key="$1"
+    if [ "${HAS_PCRE}" = "1" ]; then
+        grep -woP "\"${key}\"\s{0,}:\s{0,}\"?\K[^\",]+" | head -n 1
+    else
+        sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"{0,1}\([^\",}]*\).*/\1/p" | head -n 1 | tr -d '[:space:]'
+    fi
+}
+
+GEMINI_BLOCKED_ALPHA3="CHN RUS BLR CUB IRN PRK SYR HKG MAC"
+GEMINI_ALPHA3=""
+GOOGLE_ALPHA3_ALPHA2="ABW=AW AFG=AF AGO=AO AIA=AI ALA=AX ALB=AL AND=AD ARE=AE ARG=AR ARM=AM ASM=AS ATA=AQ ATF=TF ATG=AG AUS=AU AUT=AT AZE=AZ BDI=BI BEL=BE BEN=BJ BES=BQ BFA=BF BGD=BD BGR=BG BHR=BH BHS=BS BIH=BA BLM=BL BLR=BY BLZ=BZ BMU=BM BOL=BO BRA=BR BRB=BB BRN=BN BTN=BT BVT=BV BWA=BW CAF=CF CAN=CA CCK=CC CHE=CH CHL=CL CHN=CN CIV=CI CMR=CM COD=CD COG=CG COK=CK COL=CO COM=KM CPV=CV CRI=CR CUB=CU CUW=CW CXR=CX CYM=KY CYP=CY CZE=CZ DEU=DE DJI=DJ DMA=DM DNK=DK DOM=DO DZA=DZ ECU=EC EGY=EG ERI=ER ESH=EH ESP=ES EST=EE ETH=ET FIN=FI FJI=FJ FLK=FK FRA=FR FRO=FO FSM=FM GAB=GA GBR=GB GEO=GE GGY=GG GHA=GH GIB=GI GIN=GN GLP=GP GMB=GM GNB=GW GNQ=GQ GRC=GR GRD=GD GRL=GL GTM=GT GUF=GF GUM=GU GUY=GY HKG=HK HMD=HM HND=HN HRV=HR HTI=HT HUN=HU IDN=ID IMN=IM IND=IN IOT=IO IRL=IE IRN=IR IRQ=IQ ISL=IS ISR=IL ITA=IT JAM=JM JEY=JE JOR=JO JPN=JP KAZ=KZ KEN=KE KGZ=KG KHM=KH KIR=KI KNA=KN KOR=KR KWT=KW LAO=LA LBN=LB LBR=LR LBY=LY LCA=LC LIE=LI LKA=LK LSO=LS LTU=LT LUX=LU LVA=LV MAC=MO MAF=MF MAR=MA MCO=MC MDA=MD MDG=MG MDV=MV MEX=MX MHL=MH MKD=MK MLI=ML MLT=MT MMR=MM MNE=ME MNG=MN MNP=MP MOZ=MZ MRT=MR MSR=MS MTQ=MQ MUS=MU MWI=MW MYS=MY MYT=YT NAM=NA NCL=NC NER=NE NFK=NF NGA=NG NIC=NI NIU=NU NLD=NL NOR=NO NPL=NP NRU=NR NZL=NZ OMN=OM PAK=PK PAN=PA PCN=PN PER=PE PHL=PW PNG=PG POL=PL PRI=PR PRK=KP PRT=PT PRY=PY PSE=PS PYF=PF QAT=QA REU=RE ROU=RO RUS=RU RWA=RW SAU=SA SDN=SD SEN=SN SGP=SG SGS=GS SHN=SH SJM=SJ SLB=SB SLE=SL SLV=SV SMR=SM SOM=SO SPM=PM SRB=RS SSD=SS STP=ST SUR=SR SVK=SK SVN=SI SWE=SE SWZ=SZ SXM=SX SYC=SC SYR=SY TCA=TC TCD=TD TGO=TG THA=TH TJK=TJ TKL=TK TKM=TM TLS=TL TON=TO TTO=TT TUN=TN TUR=TR TUV=TV TWN=TW TZA=TZ UGA=UG UKR=UA UMI=UM URY=UY USA=US UZB=UZ VAT=VA VCT=VC VEN=VE VGB=VG VIR=VI VNM=VN VUT=VU WLF=WF WSM=WS YEM=YE ZAF=ZA ZMB=ZM ZWE=ZW"
+
+gemini_page_alpha3() {
+    grep -oE ',2,1,200,"[A-Z]{3}"' "$1" 2>/dev/null | head -n 1 | cut -d '"' -f2
+}
+
+gemini_region_blocked() {
+    local blocked
+    for blocked in ${GEMINI_BLOCKED_ALPHA3}; do
+        [ "${blocked}" = "$1" ] && return 0
+    done
+    return 1
+}
+
+alpha3_to_alpha2() {
+    local pair
+    for pair in ${GOOGLE_ALPHA3_ALPHA2}; do
+        if [ "${pair%%=*}" = "$1" ]; then
+            printf '%s\n' "${pair#*=}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+getPublicIP() {
+    local ip=""
+    local src
+    for src in "https://api64.ipify.org" "https://api.ip.sb/ip" "https://ipinfo.io/ip" "https://ifconfig.me/ip" "http://ip-api.com/line?fields=query"; do
+        ip=$(curl -s -${1:-4} ${ssll} --max-time 8 "${src}" 2>/dev/null | tr -d '\r\n ')
+        if [ -n "${ip}" ] && echo "${ip}" | grep -Eq '^[0-9a-fA-F:.]{7,45}$'; then
+            echo "${ip}"
+            return
+        fi
+    done
+    echo ""
+}
+
+getRegisteredCountry() {
+    local ip="$1"
+    local cc=""
+    if [ -n "${ip}" ]; then
+        cc=$(curl -sL --max-time 10 "https://rdap.org/ip/${ip}" 2>/dev/null | grep -oE '"country"[[:space:]]*:[[:space:]]*"[A-Z]{2}"' | head -n 1 | cut -d '"' -f4)
+    fi
+    echo "${cc}"
+}
 Media_Cookie=$(curl -s --retry 3 --max-time 10 "https://raw.githubusercontent.com/lmc999/RegionRestrictionCheck/main/cookies")
 IATACode=$(curl -s --retry 3 --max-time 10 "https://raw.githubusercontent.com/lmc999/RegionRestrictionCheck/main/reference/IATACode.txt")
 WOWOW_Cookie=$(echo "$Media_Cookie" | awk 'NR==3')
@@ -541,40 +605,244 @@ MediaUnlockTest_YouTube_Premium() {
     local result3=`Check_DNS_3 ${checkunlockurl}`
     local resultunlocktype=`Get_Unlock_Type ${resultP} ${result1} ${result3}`	
 
-    local tmpresult=$(curl $useNIC $usePROXY $xForward -${1} --max-time 10 -sSL -H "Accept-Language: en" -b "YSC=BiCUU3-5Gdk; CONSENT=YES+cb.20220301-11-p0.en+FX+700; GPS=1; VISITOR_INFO1_LIVE=4VwPMkB7W5A; PREF=tz=Asia.Shanghai; _gcl_au=1.1.1809531354.1646633279" "https://www.youtube.com/premium" 2>&1)
+    local tmpresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${1} ${ssll} --max-time 15 -sSL \
+        -H 'accept-language: en-US,en;q=0.9' \
+        -H 'cookie: YSC=FSCWhKo2Zgw; VISITOR_PRIVACY_METADATA=CgJERRIEEgAgYQ%3D%3D; PREF=f7=4000; __Secure-YEC=CgtRWTBGTFExeV9Iayjele2yBjIKCgJERRIEEgAgYQ%3D%3D; SOCS=CAISOAgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwNTI2LjAxX3AwGgV6aC1DTiACGgYIgMnpsgY; VISITOR_INFO1_LIVE=Di84mAIbgKY; __Secure-BUCKET=CGQ' \
+        "https://www.youtube.com/premium" 2>&1)
 
-    if [[ "$tmpresult" == "curl"* ]]; then
+    if [ -z "$tmpresult" ] || [[ "$tmpresult" == "curl"* ]]; then
         echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
         modifyJsonTemplate 'YouTube_Premium_result' 'Failed'
         return
     fi
 
-    local isCN=$(echo $tmpresult | grep 'www.google.cn')
-    if [ -n "$isCN" ]; then
+    # 获取区域：优先 contentRegion，备选 INNERTUBE_CONTEXT_GL
+    local region=$(echo "$tmpresult" | grep_json_value 'contentRegion')
+    if [ -z "$region" ]; then
+        region=$(echo "$tmpresult" | grep_json_value 'INNERTUBE_CONTEXT_GL')
+    fi
+
+    # 送中判断
+    local isCN=$(echo "$tmpresult" | grep 'www.google.cn')
+    if [ -n "$isCN" ] || [ "${region}" = "CN" ]; then
         echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}No${Font_Suffix} ${Font_Green} (Region: CN)${Font_Suffix} \n"
         modifyJsonTemplate 'YouTube_Premium_result' 'No' 'CN'
         return
     fi
-    local isNotAvailable=$(echo $tmpresult | grep 'Premium is not available in your country')
-    local region=$(echo $tmpresult | grep "countryCode" | sed 's/.*"countryCode"//' | cut -f2 -d'"')
-    local isAvailable=$(echo $tmpresult | grep 'ad-free')
+
+    local isAvailable=$(echo "$tmpresult" | grep -i 'ad-free')
+    local isNotAvailable=$(echo "$tmpresult" | grep -i 'Premium is not available in your country')
+
+    # 先判断是否可用，避免页面 FAQ/说明文案匹配到 not available 导致误报为 No
+    if [ -n "$isAvailable" ]; then
+        if [ -n "$region" ]; then
+            echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes (Region: $region)${Font_Suffix}\n"
+            modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${region}" "${resultunlocktype}"
+        else
+            echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes${Font_Suffix}\n"
+            modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${resultunlocktype}"
+        fi
+        return
+    fi
 
     if [ -n "$isNotAvailable" ]; then
-        echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}No${Font_Suffix} \n"
-        modifyJsonTemplate 'YouTube_Premium_result' 'No'
+        if [ -n "$region" ]; then
+            echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}No (Region: $region)${Font_Suffix}\n"
+            modifyJsonTemplate 'YouTube_Premium_result' 'No' "${region}"
+        else
+            echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}No${Font_Suffix}\n"
+            modifyJsonTemplate 'YouTube_Premium_result' 'No'
+        fi
         return
-    elif [ -n "$isAvailable" ] && [ -n "$region" ]; then
-        echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes (Region: $region)${Font_Suffix}\n"
-        modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${region}" "${resultunlocktype}"
-        return
-    elif [ -z "$region" ] && [ -n "$isAvailable" ]; then
-        echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes${Font_Suffix}\n"
-        modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${resultunlocktype}"
-        return
-    else
-        echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}Failed${Font_Suffix}\n"
-        modifyJsonTemplate 'YouTube_Premium_result' 'Failed'
     fi
+
+    echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}Failed${Font_Suffix}\n"
+    modifyJsonTemplate 'YouTube_Premium_result' 'Failed'
+}
+
+MediaUnlockTest_Gemini() {
+    local page="/tmp/gemini_page.html"
+    rm -f "${page}"
+    curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${1} ${ssll} -sL --max-time 25 \
+        -o "${page}" "https://gemini.google.com" 2>/dev/null
+
+    if [ ! -s "${page}" ]; then
+        rm -f "${page}"
+        echo -n -e "\r Google Gemini:\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
+        modifyJsonTemplate 'Gemini_result' 'Failed'
+        return
+    fi
+
+    local alpha3=$(gemini_page_alpha3 "${page}")
+    rm -f "${page}"
+    GEMINI_ALPHA3="${alpha3}"
+
+    if [ -n "${alpha3}" ] && gemini_region_blocked "${alpha3}"; then
+        echo -n -e "\r Google Gemini:\t\t\t${Font_Red}No${Font_Suffix} ${Font_SkyBlue}(Region: ${alpha3})${Font_Suffix}\n"
+        modifyJsonTemplate 'Gemini_result' 'No' "${alpha3}"
+        return
+    fi
+
+    if [ -n "${alpha3}" ]; then
+        local region=$(alpha3_to_alpha2 "${alpha3}")
+        [ -z "${region}" ] && region="${alpha3}"
+        echo -n -e "\r Google Gemini:\t\t\t${Font_Green}Yes (Region: ${region})${Font_Suffix}\n"
+        modifyJsonTemplate 'Gemini_result' 'Yes' "${region}"
+        return
+    fi
+
+    echo -n -e "\r Google Gemini:\t\t\t${Font_SkyBlue}Failed (region not found)${Font_Suffix}\n"
+    modifyJsonTemplate 'Gemini_result' 'Failed'
+}
+
+MediaUnlockTest_IPAttribute() {
+    local ip="${local_ipv4}"
+    [ -z "${ip}" ] && ip=$(getPublicIP 4)
+    local family=4
+    if [ -z "${ip}" ]; then
+        ip="${local_ipv6}"
+        family=6
+    fi
+    if [ -z "${ip}" ]; then
+        ip=$(getPublicIP 6)
+        family=6
+    fi
+
+    local resp asn_type="" hosting="" vpn="" proxy="" tor="" mobile="" usage_code="" reg_code="" ok=0
+
+    if [ -n "${ip}" ]; then
+        resp=$(curl -s --max-time 10 -${family} ${ssll} --user-agent "${UA_Browser}" "https://ipinfo.io/widget/demo/${ip}" 2>/dev/null)
+        if echo "${resp}" | grep -q '"privacy"'; then
+            ok=1
+            asn_type=$(echo "${resp}" | grep_json_value 'type')
+            hosting=$(echo "${resp}" | grep_json_value 'hosting')
+            vpn=$(echo "${resp}" | grep_json_value 'vpn')
+            proxy=$(echo "${resp}" | grep_json_value 'proxy')
+            tor=$(echo "${resp}" | grep_json_value 'tor')
+            mobile=$(echo "${resp}" | grep_json_value 'is_mobile')
+            usage_code=$(echo "${resp}" | grep -oE '"country"[[:space:]]*:[[:space:]]*"[A-Z]{2}"' | sed -n '1p' | cut -d '"' -f4)
+            reg_code=$(echo "${resp}" | grep -oE '"country"[[:space:]]*:[[:space:]]*"[A-Z]{2}"' | sed -n '2p' | cut -d '"' -f4)
+        fi
+    fi
+
+    if [ "${ok}" != "1" ] && [ -n "${ip}" ] && [ "${family}" = "4" ]; then
+        resp=$(curl -s --max-time 10 -4 ${ssll} "http://ip-api.com/json/${ip}?fields=status,proxy,hosting,mobile,countryCode" 2>/dev/null)
+        if echo "${resp}" | grep -q '"status":"success"'; then
+            ok=1
+            hosting=$(echo "${resp}" | grep_json_value 'hosting')
+            proxy=$(echo "${resp}" | grep_json_value 'proxy')
+            mobile=$(echo "${resp}" | grep_json_value 'mobile')
+            usage_code=$(echo "${resp}" | grep_json_value 'countryCode')
+            if [ "${hosting}" = "true" ]; then
+                asn_type="hosting"
+            elif [ "${mobile}" = "true" ]; then
+                asn_type="mobile"
+            else
+                asn_type="isp"
+            fi
+        fi
+    fi
+
+    if [ "${ok}" != "1" ] && [ -n "${ip}" ]; then
+        resp=$(curl -s --max-time 10 -${family} ${ssll} --user-agent "${UA_Browser}" "https://api.ip.sb/geoip/${ip}" 2>/dev/null)
+        if echo "${resp}" | grep -q '"isp"'; then
+            ok=2
+            asn_type=$(echo "${resp}" | grep_json_value 'isp')
+            usage_code=$(echo "${resp}" | grep_json_value 'country_code')
+        fi
+    fi
+
+    if [ "${ok}" = "0" ]; then
+        echo -n -e "\r IP Type:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
+        echo -n -e "\r IP Risk:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
+        modifyJsonTemplate 'IPType_result' ''
+        modifyJsonTemplate 'IPattributes_result' ''
+        modifyJsonTemplate 'IPRisk_result' 'Unknow'
+        return
+    fi
+
+    local rdap_code=$(getRegisteredCountry "${ip}")
+    if [ -n "${rdap_code}" ]; then
+        reg_code="${rdap_code}"
+    fi
+
+    local attrs="other"
+    case "${asn_type}" in
+        hosting) attrs="host" ;;
+        isp | lineisp) attrs="isp" ;;
+        mobile) attrs="mobile" ;;
+        business) attrs="business" ;;
+        education) attrs="education" ;;
+        government) attrs="government" ;;
+        *) [ -n "${asn_type}" ] && attrs="${asn_type}" ;;
+    esac
+
+    local iptype=""
+    if [ -n "${usage_code}" ] && [ -n "${reg_code}" ]; then
+        if [ "${usage_code}" = "${reg_code}" ]; then
+            iptype="Native"
+        else
+            iptype="Broadcast"
+        fi
+    fi
+
+    local risk="Low"
+    if [ "${ok}" = "2" ]; then
+        risk="unknown"
+    elif [ "${tor}" = "true" ] || [ "${proxy}" = "true" ] || [ "${vpn}" = "true" ]; then
+        risk="High"
+    elif [ "${hosting}" = "true" ]; then
+        risk="Medium"
+    fi
+
+    local color="${Font_Green}"
+    [ "${risk}" = "Medium" ] && color="${Font_Yellow}"
+    [ "${risk}" = "High" ] && color="${Font_Red}"
+    [ "${risk}" = "unknown" ] && color="${Font_SkyBlue}"
+
+    modifyJsonTemplate 'IPType_result' "${iptype}"
+    modifyJsonTemplate 'IPattributes_result' "${attrs}"
+    modifyJsonTemplate 'IPRisk_result' "${risk}"
+
+    echo -n -e "\r IP Type:\t\t\t\t${color}${iptype}${Font_Suffix} ${Font_SkyBlue}(${attrs})${Font_Suffix}\n"
+    echo -n -e "\r IP Risk:\t\t\t\t${color}${risk}${Font_Suffix}\n"
+}
+
+MediaUnlockTest_GoogleRegion() {
+    local code="" resp="" from="YouTube"
+
+    # 源1: YouTube 首页
+    resp=$(curl -s --max-time 12 ${ssll} --user-agent "${UA_Browser}" "https://www.youtube.com/" 2>/dev/null)
+    code=$(printf '%s' "${resp}" | grep -oE '"countryCode":"[A-Za-z]{2}"' | head -1 | cut -d '"' -f4)
+
+    # 源2: Premium 首页兜底
+    if [ -z "${code}" ]; then
+        resp=$(curl -s --max-time 12 ${ssll} --user-agent "${UA_Browser}" "https://www.youtube.com/premium" 2>/dev/null)
+        code=$(printf '%s' "${resp}" | grep -oE '"countryCode":"[A-Za-z]{2}"' | head -1 | cut -d '"' -f4)
+    fi
+
+    # 源3: Gemini 取得的三字码兜底
+    if [ -z "${code}" ] && [ -n "${GEMINI_ALPHA3}" ]; then
+        code=$(alpha3_to_alpha2 "${GEMINI_ALPHA3}")
+        [ -n "${code}" ] && from="Gemini"
+    fi
+
+    if [ -z "${code}" ]; then
+        modifyJsonTemplate 'GoogleRegion_result' ''
+        echo -n -e "\r Google Region:\t\t\t${Font_SkyBlue}Unknow${Font_Suffix}\n"
+        return
+    fi
+
+    code=$(printf '%s' "${code}" | tr '[:lower:]' '[:upper:]')
+    modifyJsonTemplate 'GoogleRegion_result' "${code}"
+
+    local color="${Font_Green}" note=""
+    if [ "${code}" = "CN" ]; then
+        color="${Font_Red}"
+        note=" ${Font_Red}(送中)${Font_Suffix}"
+    fi
+
+    echo -n -e "\r Google Region:\t\t\t${color}${code}${Font_Suffix}${note} ${Font_SkyBlue}(via ${from})${Font_Suffix}\n"
 }
 
 OpenAITest(){
@@ -635,8 +903,13 @@ createJsonTemplate() {
     "Netflix": "Netflix_result",
     "Disney+": "DisneyPlus_result",
     "OpenAI": "OpenAI_result",
+    "Gemini": "Gemini_result",
     "BBC": "BBC_result",
-    "Abema": "AbemaTV_result"
+    "Abema": "AbemaTV_result",
+    "IPType": "IPType_result",
+    "IPattributes": "IPattributes_result",
+    "IPRisk": "IPRisk_result",
+    "GoogleRegion": "GoogleRegion_result"
 }' > /root/media_test_tpl.json
 }
 
@@ -776,12 +1049,15 @@ printInfo() {
 
 runCheck() {
     createJsonTemplate
-    MediaUnlockTest_BBCiPLAYER 4
-    MediaUnlockTest_AbemaTV_IPTest 4
-    MediaUnlockTest_Netflix 6
-    MediaUnlockTest_YouTube_Premium 6
-    MediaUnlockTest_DisneyPlus 6
-    OpenAITest 4
+    MediaUnlockTest_BBCiPLAYER ${NetworkType:-4}
+    MediaUnlockTest_AbemaTV_IPTest ${NetworkType:-4}
+    MediaUnlockTest_Netflix ${NetworkType:-4}
+    MediaUnlockTest_YouTube_Premium ${NetworkType:-4}
+    MediaUnlockTest_DisneyPlus ${NetworkType:-4}
+    OpenAITest ${NetworkType:-4}
+    MediaUnlockTest_Gemini ${NetworkType:-4}
+    MediaUnlockTest_IPAttribute
+    MediaUnlockTest_GoogleRegion
 }
 
 checkData()
