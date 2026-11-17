@@ -79,8 +79,6 @@ grep_json_value() {
 }
 
 GEMINI_BLOCKED_ALPHA3="CHN RUS BLR CUB IRN PRK SYR HKG MAC"
-GEMINI_ALPHA3=""
-GOOGLE_ALPHA3_ALPHA2="ABW=AW AFG=AF AGO=AO AIA=AI ALA=AX ALB=AL AND=AD ARE=AE ARG=AR ARM=AM ASM=AS ATA=AQ ATF=TF ATG=AG AUS=AU AUT=AT AZE=AZ BDI=BI BEL=BE BEN=BJ BES=BQ BFA=BF BGD=BD BGR=BG BHR=BH BHS=BS BIH=BA BLM=BL BLR=BY BLZ=BZ BMU=BM BOL=BO BRA=BR BRB=BB BRN=BN BTN=BT BVT=BV BWA=BW CAF=CF CAN=CA CCK=CC CHE=CH CHL=CL CHN=CN CIV=CI CMR=CM COD=CD COG=CG COK=CK COL=CO COM=KM CPV=CV CRI=CR CUB=CU CUW=CW CXR=CX CYM=KY CYP=CY CZE=CZ DEU=DE DJI=DJ DMA=DM DNK=DK DOM=DO DZA=DZ ECU=EC EGY=EG ERI=ER ESH=EH ESP=ES EST=EE ETH=ET FIN=FI FJI=FJ FLK=FK FRA=FR FRO=FO FSM=FM GAB=GA GBR=GB GEO=GE GGY=GG GHA=GH GIB=GI GIN=GN GLP=GP GMB=GM GNB=GW GNQ=GQ GRC=GR GRD=GD GRL=GL GTM=GT GUF=GF GUM=GU GUY=GY HKG=HK HMD=HM HND=HN HRV=HR HTI=HT HUN=HU IDN=ID IMN=IM IND=IN IOT=IO IRL=IE IRN=IR IRQ=IQ ISL=IS ISR=IL ITA=IT JAM=JM JEY=JE JOR=JO JPN=JP KAZ=KZ KEN=KE KGZ=KG KHM=KH KIR=KI KNA=KN KOR=KR KWT=KW LAO=LA LBN=LB LBR=LR LBY=LY LCA=LC LIE=LI LKA=LK LSO=LS LTU=LT LUX=LU LVA=LV MAC=MO MAF=MF MAR=MA MCO=MC MDA=MD MDG=MG MDV=MV MEX=MX MHL=MH MKD=MK MLI=ML MLT=MT MMR=MM MNE=ME MNG=MN MNP=MP MOZ=MZ MRT=MR MSR=MS MTQ=MQ MUS=MU MWI=MW MYS=MY MYT=YT NAM=NA NCL=NC NER=NE NFK=NF NGA=NG NIC=NI NIU=NU NLD=NL NOR=NO NPL=NP NRU=NR NZL=NZ OMN=OM PAK=PK PAN=PA PCN=PN PER=PE PHL=PW PNG=PG POL=PL PRI=PR PRK=KP PRT=PT PRY=PY PSE=PS PYF=PF QAT=QA REU=RE ROU=RO RUS=RU RWA=RW SAU=SA SDN=SD SEN=SN SGP=SG SGS=GS SHN=SH SJM=SJ SLB=SB SLE=SL SLV=SV SMR=SM SOM=SO SPM=PM SRB=RS SSD=SS STP=ST SUR=SR SVK=SK SVN=SI SWE=SE SWZ=SZ SXM=SX SYC=SC SYR=SY TCA=TC TCD=TD TGO=TG THA=TH TJK=TJ TKL=TK TKM=TM TLS=TL TON=TO TTO=TT TUN=TN TUR=TR TUV=TV TWN=TW TZA=TZ UGA=UG UKR=UA UMI=UM URY=UY USA=US UZB=UZ VAT=VA VCT=VC VEN=VE VGB=VG VIR=VI VNM=VN VUT=VU WLF=WF WSM=WS YEM=YE ZAF=ZA ZMB=ZM ZWE=ZW"
 
 gemini_page_alpha3() {
     grep -oE ',2,1,200,"[A-Z]{3}"' "$1" 2>/dev/null | head -n 1 | cut -d '"' -f2
@@ -90,17 +88,6 @@ gemini_region_blocked() {
     local blocked
     for blocked in ${GEMINI_BLOCKED_ALPHA3}; do
         [ "${blocked}" = "$1" ] && return 0
-    done
-    return 1
-}
-
-alpha3_to_alpha2() {
-    local pair
-    for pair in ${GOOGLE_ALPHA3_ALPHA2}; do
-        if [ "${pair%%=*}" = "$1" ]; then
-            printf '%s\n' "${pair#*=}"
-            return 0
-        fi
     done
     return 1
 }
@@ -729,7 +716,6 @@ MediaUnlockTest_Gemini() {
 
     local alpha3=$(gemini_page_alpha3 "${page}")
     rm -f "${page}"
-    GEMINI_ALPHA3="${alpha3}"
 
     if [ -n "${alpha3}" ] && gemini_region_blocked "${alpha3}"; then
         echo -n -e "\r Google Gemini:\t\t\t${Font_Red}No${Font_Suffix} ${Font_SkyBlue}(Region: ${alpha3})${Font_Suffix}\n"
@@ -738,10 +724,8 @@ MediaUnlockTest_Gemini() {
     fi
 
     if [ -n "${alpha3}" ]; then
-        local region=$(alpha3_to_alpha2 "${alpha3}")
-        [ -z "${region}" ] && region="${alpha3}"
-        echo -n -e "\r Google Gemini:\t\t\t${Font_Green}Yes (Region: ${region})${Font_Suffix}\n"
-        modifyJsonTemplate 'Gemini_result' 'Yes' "${region}"
+        echo -n -e "\r Google Gemini:\t\t\t${Font_Green}Yes (Region: ${alpha3})${Font_Suffix}\n"
+        modifyJsonTemplate 'Gemini_result' 'Yes' "${alpha3}"
         return
     fi
 
@@ -862,43 +846,6 @@ MediaUnlockTest_IPAttribute() {
     echo -n -e "\r IP Risk:\t\t\t\t${color}${risk}${Font_Suffix}\n"
 }
 
-MediaUnlockTest_GoogleRegion() {
-    local code="" resp="" from="YouTube"
-
-    # 源1: YouTube 首页
-    resp=$(curl -s --max-time 12 ${ssll} --user-agent "${UA_Browser}" "https://www.youtube.com/" 2>/dev/null)
-    code=$(printf '%s' "${resp}" | grep -oE '"countryCode":"[A-Za-z]{2}"' | head -1 | cut -d '"' -f4)
-
-    # 源2: Premium 首页兜底
-    if [ -z "${code}" ]; then
-        resp=$(curl -s --max-time 12 ${ssll} --user-agent "${UA_Browser}" "https://www.youtube.com/premium" 2>/dev/null)
-        code=$(printf '%s' "${resp}" | grep -oE '"countryCode":"[A-Za-z]{2}"' | head -1 | cut -d '"' -f4)
-    fi
-
-    # 源3: Gemini 取得的三字码兜底
-    if [ -z "${code}" ] && [ -n "${GEMINI_ALPHA3}" ]; then
-        code=$(alpha3_to_alpha2 "${GEMINI_ALPHA3}")
-        [ -n "${code}" ] && from="Gemini"
-    fi
-
-    if [ -z "${code}" ]; then
-        modifyJsonTemplate 'GoogleRegion_result' ''
-        echo -n -e "\r Google Region:\t\t\t${Font_SkyBlue}Unknow${Font_Suffix}\n"
-        return
-    fi
-
-    code=$(printf '%s' "${code}" | tr '[:lower:]' '[:upper:]')
-    modifyJsonTemplate 'GoogleRegion_result' "${code}"
-
-    local color="${Font_Green}" note=""
-    if [ "${code}" = "CN" ]; then
-        color="${Font_Red}"
-        note=" ${Font_Red}(送中)${Font_Suffix}"
-    fi
-
-    echo -n -e "\r Google Region:\t\t\t${color}${code}${Font_Suffix}${note} ${Font_SkyBlue}(via ${from})${Font_Suffix}\n"
-}
-
 OpenAITest(){
     local checkunlockurl="chat.openai.com"
     local result1=`Check_DNS_1 ${checkunlockurl}`
@@ -962,8 +909,7 @@ createJsonTemplate() {
     "Abema": "AbemaTV_result",
     "IPType": "IPType_result",
     "IPattributes": "IPattributes_result",
-    "IPRisk": "IPRisk_result",
-    "GoogleRegion": "GoogleRegion_result"
+    "IPRisk": "IPRisk_result"
 }' > /root/media_test_tpl.json
 }
 
@@ -1111,7 +1057,6 @@ runCheck() {
     OpenAITest 4
     MediaUnlockTest_Gemini 6
     MediaUnlockTest_IPAttribute
-    MediaUnlockTest_GoogleRegion
 }
 
 checkData()
