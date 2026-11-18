@@ -453,25 +453,35 @@ function Get_Unlock_Type()
 #                                         #
 ###########################################
 
-MediaUnlockTest_BBCiPLAYER() {
-    local tmpresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${1} ${ssll} -fsL --max-time 10 "https://open.live.bbc.co.uk/mediaselector/6/select/version/2.0/mediaset/pc/vpid/bbc_one_london/format/json/jsfunc/JS_callbacks0" 2>&1)
-    if [ "${tmpresult}" = "000" ]; then
-        echo -n -e "\r BBC iPLAYER:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
+MediaUnlockTest_TikTok() {
+    local family=${1:-4}
+    local tmpresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${family} ${ssll} -sL --max-time 15 "https://www.tiktok.com/" 2>&1)
+    if [[ "$tmpresult" == *"Please wait..."* ]]; then
+        tmpresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -${family} ${ssll} -sL --max-time 15 "https://www.tiktok.com/explore" 2>&1)
+    fi
+
+    # v6 优先时若连接失败且有 v4，自动回落到 v4 检测
+    if ([ -z "$tmpresult" ] || [[ "$tmpresult" == "curl"* ]]) && [ "${family}" = "6" ] && [ -n "${local_ipv4}" ]; then
+        family=4
+        tmpresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -4 ${ssll} -sL --max-time 15 "https://www.tiktok.com/" 2>&1)
+        if [[ "$tmpresult" == *"Please wait..."* ]]; then
+            tmpresult=$(curl $useNIC $usePROXY $xForward --user-agent "${UA_Browser}" -4 ${ssll} -sL --max-time 15 "https://www.tiktok.com/explore" 2>&1)
+        fi
+    fi
+
+    if [ -z "$tmpresult" ] || [[ "$tmpresult" == "curl"* ]]; then
+        echo -n -e "\r TikTok:\t\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
+        modifyJsonTemplate 'TikTok_result' 'Failed'
         return
     fi
 
-    if [ -n "$tmpresult" ]; then
-        result=$(echo $tmpresult | grep 'geolocation')
-        if [ -n "$result" ]; then
-            echo -n -e "\r BBC iPLAYER:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
-            modifyJsonTemplate 'BBC_result' 'No'
-        else
-            echo -n -e "\r BBC iPLAYER:\t\t\t\t${Font_Green}Yes${Font_Suffix}\n"
-            modifyJsonTemplate 'BBC_result' 'Yes'
-        fi
+    local region=$(echo "$tmpresult" | grep -oE '"region"[[:space:]]*:[[:space:]]*"[A-Z]{2}"' | head -n 1 | cut -d '"' -f4)
+    if [ -n "$region" ]; then
+        echo -n -e "\r TikTok:\t\t\t\t${Font_Green}Yes (Region: ${region})${Font_Suffix}\n"
+        modifyJsonTemplate 'TikTok_result' 'Yes' "${region}"
     else
-        echo -n -e "\r BBC iPLAYER:\t\t\t\t${Font_Red}Failed${Font_Suffix}\n"
-        modifyJsonTemplate 'BBC_result' 'Failed'
+        echo -n -e "\r TikTok:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
+        modifyJsonTemplate 'TikTok_result' 'No'
     fi
 }
 
@@ -924,7 +934,7 @@ createJsonTemplate() {
     "Disney+": "DisneyPlus_result",
     "OpenAI": "OpenAI_result",
     "Gemini": "Gemini_result",
-    "BBC": "BBC_result",
+    "TikTok": "TikTok_result",
     "Abema": "AbemaTV_result",
     "IPType": "IPType_result",
     "IPattributes": "IPattributes_result",
@@ -1068,7 +1078,7 @@ printInfo() {
 
 runCheck() {
     createJsonTemplate
-    MediaUnlockTest_BBCiPLAYER 4
+    MediaUnlockTest_TikTok 4
     MediaUnlockTest_AbemaTV_IPTest 4
     MediaUnlockTest_Netflix 6
     MediaUnlockTest_YouTube_Premium 6
