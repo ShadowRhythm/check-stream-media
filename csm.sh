@@ -674,21 +674,10 @@ MediaUnlockTest_YouTube_Premium() {
         return
     fi
 
-    local isAvailable=$(echo "$tmpresult" | grep -i 'ad-free')
     local isNotAvailable=$(echo "$tmpresult" | grep -i 'Premium is not available in your country')
+    local isAvailable=$(echo "$tmpresult" | grep -i 'ad-free')
 
-    # 先判断是否可用，避免页面 FAQ/说明文案匹配到 not available 导致误报为 No
-    if [ -n "$isAvailable" ]; then
-        if [ -n "$region" ]; then
-            echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes (Region: $region)${Font_Suffix}\n"
-            modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${region}" "${resultunlocktype}"
-        else
-            echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes${Font_Suffix}\n"
-            modifyJsonTemplate 'YouTube_Premium_result' 'Yes' '' "${resultunlocktype}"
-        fi
-        return
-    fi
-
+    # 先判断不可用（如 RU 等地区虽然页面包含 ad-free 介绍，但会提示 not available in your country）
     if [ -n "$isNotAvailable" ]; then
         if [ -n "$region" ]; then
             echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}No (Region: $region)${Font_Suffix}\n"
@@ -696,6 +685,17 @@ MediaUnlockTest_YouTube_Premium() {
         else
             echo -n -e "\r YouTube Premium:\t\t\t${Font_Red}No${Font_Suffix}\n"
             modifyJsonTemplate 'YouTube_Premium_result' 'No'
+        fi
+        return
+    fi
+
+    if [ -n "$isAvailable" ]; then
+        if [ -n "$region" ]; then
+            echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes (Region: $region)${Font_Suffix}\n"
+            modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${region}" "${resultunlocktype}"
+        else
+            echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes${Font_Suffix}\n"
+            modifyJsonTemplate 'YouTube_Premium_result' 'Yes' '' "${resultunlocktype}"
         fi
         return
     fi
