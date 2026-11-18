@@ -684,7 +684,7 @@ MediaUnlockTest_YouTube_Premium() {
             modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${region}" "${resultunlocktype}"
         else
             echo -n -e "\r YouTube Premium:\t\t${resultunlocktype}\t${Font_Green}Yes${Font_Suffix}\n"
-            modifyJsonTemplate 'YouTube_Premium_result' 'Yes' "${resultunlocktype}"
+            modifyJsonTemplate 'YouTube_Premium_result' 'Yes' '' "${resultunlocktype}"
         fi
         return
     fi
@@ -885,7 +885,7 @@ OpenAITest(){
     local result2=$(echo $tmpresult2 | grep VPN)
     if [ -z "$result2" ] && [ -z "$result1" ] && [[ "$tmpresult1" != "curl"* ]] && [[ "$tmpresult2" != "curl"* ]]; then
         echo -n -e "\r ChatGPT:\t\t\t${resultunlocktype}\t${Font_Green}Yes${Font_Suffix}\n"
-        modifyJsonTemplate 'OpenAI_result' 'Yes' "${resultunlocktype}"
+        modifyJsonTemplate 'OpenAI_result' 'Yes' '' "${resultunlocktype}"
         return
     elif [ -n "$result2" ] && [ -n "$result1" ]; then
         echo -n -e "\r ChatGPT:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
