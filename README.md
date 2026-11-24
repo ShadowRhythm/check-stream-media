@@ -19,6 +19,6 @@ bash unlock.sh
 
 快捷参数示例：
 ```bash
-# 简体中文、新加坡地区、检测并解锁 Netflix 与 Google、模式 1 (定时 5 分钟检查并刷 IP)
+# 简体中文、新加坡地区、检测并解锁 Netflix 与 Google、模式 1 (定时 1 小时检查并刷 IP)
 bash unlock.sh -C -A sg -N ng -M 1
 ```

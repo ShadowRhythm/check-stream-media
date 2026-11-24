@@ -35,8 +35,8 @@ E[10]="Media unlock daemon installed successfully. The running log of the schedu
 C[10]="媒体解锁守护进程已安装成功。定时任务运行日志将保存在 /root/result.log"
 E[11]="The media unlock daemon is completely uninstalled."
 C[11]="媒体解锁守护进程已彻底卸载"
-E[12]="\n 1. Mode 1: Check it every 5 minutes.\n 2. Mode 2: Create a jobs with \$SVC_TYPE service. The process runs in the background. When the unlock is all successful, it will be checked every 1 hour.\n 3. Mode 3: Create a jobs with nohup to run. The process runs in the background. When the unlock is all successful, it will be checked every 1 hour.\n 4. Mode 4: Create a screen named [u] and run. The process runs in the background. When the unlock is all successful, it will be checked every 1 hour.\n 5. Mode 5: Install pm2 daemon. The process runs in the background. When the unlock is all successful, it will be checked every 1 hour.\n 6. Uninstall\n 0. Exit\n"
-C[12]="\n 1. 模式1: 定时5分钟检查一次,遇到不解锁时更换 WARP IP，直至刷成功\n 2. 模式2: 创建 \$SVC_TYPE 服务。进程一直在后台，当刷成功后，每隔1小时检查一次\n 3. 模式3: 用 nohup 创建一个 jobs。进程一直在后台，当刷成功后，每隔1小时检查一次\n 4. 模式4: 创建一个名为 [u] 的 Screen 会话。进程一直在后台，当刷成功后，每隔1小时检查一次\n 5. 模式5: 安装 pm2 守护进程，安装依赖需较长时间。进程一直在后台，当刷成功后，每隔1小时检查一次\n 6. 卸载\n 0. 退出\n"
+E[12]="\n 1. Mode 1: Check it every 1 hour.\n 2. Mode 2: Create a jobs with \$SVC_TYPE service. The process runs in the background. When the unlock is all successful, it will be checked every 1 hour.\n 3. Mode 3: Create a jobs with nohup to run. The process runs in the background. When the unlock is all successful, it will be checked every 1 hour.\n 4. Mode 4: Create a screen named [u] and run. The process runs in the background. When the unlock is all successful, it will be checked every 1 hour.\n 5. Mode 5: Install pm2 daemon. The process runs in the background. When the unlock is all successful, it will be checked every 1 hour.\n 6. Uninstall\n 0. Exit\n"
+C[12]="\n 1. 模式1: 定时1小时检查一次,遇到不解锁时更换 WARP IP，直至刷成功\n 2. 模式2: 创建 \$SVC_TYPE 服务。进程一直在后台，当刷成功后，每隔1小时检查一次\n 3. 模式3: 用 nohup 创建一个 jobs。进程一直在后台，当刷成功后，每隔1小时检查一次\n 4. 模式4: 创建一个名为 [u] 的 Screen 会话。进程一直在后台，当刷成功后，每隔1小时检查一次\n 5. 模式5: 安装 pm2 守护进程，安装依赖需较长时间。进程一直在后台，当刷成功后，每隔1小时检查一次\n 6. 卸载\n 0. 退出\n"
 E[13]="The current region is \$REGION. Confirm press [y] . If you want another regions, please enter the two-digit region abbreviation. (such as hk,sg. Default is \$REGION):"
 C[13]="当前地区是:\$REGION，需要解锁当前地区请按 y , 如需其他地址请输入两位地区简写 (如 hk,sg，默认:\$REGION):"
 E[14]="Wrong input."
@@ -390,8 +390,7 @@ export_unlock_file() {
   # 根据解锁模式写入定时任务或systemd
   sh -c "$TASK"
 
-  # 生成 warp_unlock.sh 文件，判断当前流媒体解锁状态，遇到不解锁时更换 WARP IP，直至刷成功。5分钟后还没有刷成功，将不会重复该进程而浪费系统资源
-
+  # 生成 warp_unlock.sh 文件，判断当前流媒体解锁状态，遇到不解锁时更换 WARP IP，直至刷成功。
   # 生成 warp_unlock.sh 文件：内容累积到 WARP_UNLOCK_SRC（+=），最后一次性写盘，不用 heredoc。
   # 后台常驻（模式2/3/4/5，CHOOSE1≠1）用 while true:do 包裹并整体缩进2空格；crontab 定时（模式1）不包裹。
   local WARP_UNLOCK_SRC="" I="  "
@@ -1302,7 +1301,7 @@ check_warp
 action1() {
   [ -n "$UNLOCK_MODE_NOW" ] && uninstall
   TASK=""
-  set_cron_one "*/5 * * * * root bash /usr/bin/warp_unlock.sh"
+  set_cron_one "0 * * * * root bash /usr/bin/warp_unlock.sh"
   RESULT_OUTPUT="\n $(text 10) \n"
   export_unlock_file
   result_output
