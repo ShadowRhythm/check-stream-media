@@ -1087,9 +1087,14 @@ ABC
 
       REGION[3]="${G_REGION^^}"
 
-      # 判定是否"送中" (CN)
-      if [[ "${REGION[3]}" == "CN" ]]; then
+      # 判定是否为受限/异常地区: CN(送中)、RU(俄区受制裁)
+      if [[ "${REGION[3]}" =~ ^(CN|RU)$ ]]; then
         return 3
+      fi
+
+      # 判定是否匹配期望地区 (只要指定了 EXPECT，非期望地区则换 IP)
+      if [ -n "$EXPECT" ] && ! echo "${REGION[3]}" | grep -qi "$EXPECT"; then
+        return 4
       fi
 
       return 0
@@ -1102,7 +1107,8 @@ ABC
     # 0: 成功解锁
     # 1: 网络连接错误
     # 2: 触发人机验证/拦截 (CAPTCHA / Blocked)
-    # 3: 送中 (Region: CN)
+    # 3: 受限地区 (Region: CN 送中 / RU 俄区)
+    # 4: 地区不匹配 (非期望地区 EXPECT)
 
     case "$?" in
       0 )
@@ -1119,7 +1125,11 @@ ABC
         ;;
       3 )
         R[3]="$NOT_UNLOCK_STATUS"
-        CONTENT="Google: ${R[3]} (Region: CN - 送中)."
+        CONTENT="Google: ${R[3]} (Region: ${REGION[3]:-Unknown} - 送中/俄区受限)."
+        ;;
+      4 )
+        R[3]="$NOT_UNLOCK_STATUS"
+        CONTENT="Google: ${R[3]} (Region: ${REGION[3]^^} != ${EXPECT^^})."
         ;;
       * )
         R[3]="$NOT_UNLOCK_STATUS"
