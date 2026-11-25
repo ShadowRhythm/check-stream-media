@@ -1175,34 +1175,52 @@ ${I}  \$RESTART
   chmod +x /usr/bin/warp_unlock.sh
 }
 
-# 写入 warp_unlock 的 cron 条目。Alpine 用 busybox crond 文件(/var/spool/cron/crontabs/root)并确保 crond 启用；其余系统写 /etc/crontab
+# 写入 warp_unlock 的 cron 条目。Alpine 用 busybox crond 文件(/var/spool/cron/crontabs/root)并确保 crond 启用；其余系统优先使用 crontab 命令写入当前用户任务（crontab -l 可见）
 set_cron_one() {
   local CRON_LINE="$1"
+  local USER_CRON_LINE
+  USER_CRON_LINE="$(awk '{ out=""; for(i=1;i<=NF;i++){ if($i!="root") out=out (out!=""?FS:"") $i } print out }' <<<"$CRON_LINE")"
+
   if [ "$SYSTEM" = Alpine ]; then
     local CF=/var/spool/cron/crontabs/root
-    # Alpine busybox crond 的 crontab 为 5 字段格式（不含用户字段），去掉用户 token:root
-    CRON_LINE="$(awk '{ out=""; for(i=1;i<=NF;i++){ if($i!="root") out=out (out!=""?FS:"") $i } print out }' <<<"$CRON_LINE")"
     mkdir -p "$(dirname "$CF")"
     sed -i '/warp_unlock.sh/d' "$CF" 2>/dev/null || true
-    printf '%s\n' "$CRON_LINE" >> "$CF"
+    printf '%s\n' "$USER_CRON_LINE" >> "$CF"
     chmod 600 "$CF"
     # 确保 busybox crond 运行并开机自启
     rc-update add crond >/dev/null 2>&1
     rc-service crond status >/dev/null 2>&1 | grep -q started || rc-service crond start >/dev/null 2>&1
   else
-    # 部分精简系统可能无 /etc/crontab，先确保存在再写，避免 sed 报错
-    [ -f /etc/crontab ] || touch /etc/crontab 2>/dev/null
-    sed -i '/warp_unlock.sh/d' /etc/crontab 2>/dev/null || true
-    printf '%s\n' "$CRON_LINE" >> /etc/crontab
+    # 优先使用 crontab 命令写入当前用户的 crontab（使 crontab -l 能直接查看到，且自动触发 cron 重新载入）
+    if command -v crontab >/dev/null 2>&1; then
+      (crontab -l 2>/dev/null | grep -v 'warp_unlock.sh'; echo "$USER_CRON_LINE") | crontab -
+    else
+      # 兜底：直接写入 /etc/crontab（6 字段格式，含用户列 root）
+      [ -f /etc/crontab ] || touch /etc/crontab 2>/dev/null
+      sed -i '/warp_unlock.sh/d' /etc/crontab 2>/dev/null || true
+      printf '%s\n' "$CRON_LINE" >> /etc/crontab
+    fi
+
+    # 清理 /etc/crontab 中可能残留的重复条目，避免双重执行
+    [ -f /etc/crontab ] && command -v crontab >/dev/null 2>&1 && sed -i '/warp_unlock.sh/d' /etc/crontab 2>/dev/null || true
+
+    # 确保 cron / crond 服务处于运行和开机自启状态
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl enable --now cron >/dev/null 2>&1 || systemctl enable --now crond >/dev/null 2>&1
+    fi
   fi
 }
 
 # 删除 warp_unlock 的 cron 条目（按系统选文件）
 del_cron_one() {
-  # 卸载(-U)路径在 check_system_info 之前，SYSTEM 未必已赋值；
-  # 统一清理两个候选 crontab 文件中 warp_unlock.sh 的行，不依赖 SYSTEM 判断
-  [ -f /var/spool/cron/crontabs/root ] && sed -i '/warp_unlock.sh/d' /var/spool/cron/crontabs/root
-  [ -f /etc/crontab ] && sed -i '/warp_unlock.sh/d' /etc/crontab
+  # 清理 crontab 用户任务
+  if command -v crontab >/dev/null 2>&1; then
+    (crontab -l 2>/dev/null | grep -v 'warp_unlock.sh') | crontab - 2>/dev/null || true
+  fi
+  # 统一清理各系统候选 crontab 文件中 warp_unlock.sh 的行，不依赖 SYSTEM 判断
+  [ -f /var/spool/cron/crontabs/root ] && sed -i '/warp_unlock.sh/d' /var/spool/cron/crontabs/root 2>/dev/null || true
+  [ -f /var/spool/cron/root ] && sed -i '/warp_unlock.sh/d' /var/spool/cron/root 2>/dev/null || true
+  [ -f /etc/crontab ] && sed -i '/warp_unlock.sh/d' /etc/crontab 2>/dev/null || true
 }
 
 # 输出执行结果
@@ -1304,6 +1322,7 @@ action1() {
   set_cron_one "0 * * * * root bash /usr/bin/warp_unlock.sh"
   RESULT_OUTPUT="\n $(text 10) \n"
   export_unlock_file
+  nohup bash /usr/bin/warp_unlock.sh >/dev/null 2>&1 &
   result_output
 }
 
