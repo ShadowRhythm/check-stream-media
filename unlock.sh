@@ -1063,24 +1063,30 @@ ABC
       # 途径 1: 通过 YouTube 首页获取 Google 判定地区 (与 Google 服务体系 GeoIP 一致)
       local YT_PAGE=$(curl ${NIC} --user-agent "${UA_BROWSER}" -sSL --max-time 10 "https://www.youtube.com/" 2>&1)
       if ! grep -q 'curl:' <<< "$YT_PAGE"; then
-        G_REGION=$(grep -oE '"countryCode":"[A-Za-z]{2}"' <<< "$YT_PAGE" | head -n 1 | cut -d '"' -f4)
+        G_REGION=$(grep -oE '"(contentRegion|INNERTUBE_CONTEXT_GL|countryCode)":[ ]*"[A-Za-z]{2}"' <<< "$YT_PAGE" | head -n 1 | cut -d '"' -f4)
       fi
 
       # 途径 2: YouTube Premium 兜底
       if [ -z "$G_REGION" ]; then
-        local PREM_PAGE=$(curl ${NIC} --user-agent "${UA_BROWSER}" -sSL --max-time 10 "https://www.youtube.com/premium" 2>&1)
+        local PREM_PAGE=$(curl ${NIC} --user-agent "${UA_BROWSER}" -sSL --max-time 10 \
+          -H 'accept-language: en-US,en;q=0.9' \
+          "https://www.youtube.com/premium" 2>&1)
         if ! grep -q 'curl:' <<< "$PREM_PAGE"; then
-          G_REGION=$(grep -oE '"countryCode":"[A-Za-z]{2}"' <<< "$PREM_PAGE" | head -n 1 | cut -d '"' -f4)
+          G_REGION=$(grep -oE '"(contentRegion|INNERTUBE_CONTEXT_GL|countryCode)":[ ]*"[A-Za-z]{2}"' <<< "$PREM_PAGE" | head -n 1 | cut -d '"' -f4)
         fi
       fi
 
       # 途径 3: 从 Google 搜索重定向有效 URL 兜底提取国家码
       if [ -z "$G_REGION" ]; then
         local EFF_URL=$(tail -n 1 <<< "$SEARCH_RESULT")
-        if [[ "$EFF_URL" =~ google\.com\.([a-z]{2}) ]]; then
+        if [[ "$EFF_URL" =~ google\.com\.([a-z]{2})(/|\?|$) ]]; then
           G_REGION="${BASH_REMATCH[1]}"
-        elif [[ "$EFF_URL" =~ google\.([a-z]{2}) ]]; then
+        elif [[ "$EFF_URL" =~ google\.co\.([a-z]{2})(/|\?|$) ]]; then
           G_REGION="${BASH_REMATCH[1]}"
+        elif [[ "$EFF_URL" =~ google\.([a-z]{2})(/|\?|$) ]]; then
+          G_REGION="${BASH_REMATCH[1]}"
+        elif [[ "$EFF_URL" =~ google\.com(/|\?|$) ]]; then
+          G_REGION="US"
         fi
       fi
 
