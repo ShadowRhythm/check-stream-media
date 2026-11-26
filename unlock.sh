@@ -349,9 +349,11 @@ input_streammedia_unlock() {
     hint "\n $(text 15) \n" && reading " $(text 3) " CHOOSE4
     for d in "${!STREAM[@]}"; do
       ( [ -z "$CHOOSE4" ] || echo "$CHOOSE4" | grep -q "$((d+1))" ) && STREAM_UNLOCK[d]='1' || STREAM_UNLOCK[d]='0'
-      [ "$d" = 0 ] && echo "${STREAM[d]}: null" > /usr/bin/status.log || echo "${STREAM[d]}: null" >> /usr/bin/status.log
     done
   fi
+  for d in "${!STREAM[@]}"; do
+    [ "$d" = 0 ] && echo "${STREAM[d]}: null" > /usr/bin/status.log || echo "${STREAM[d]}: null" >> /usr/bin/status.log
+  done
   for ((e=0; e<"${#STREAM[*]}"; e++)); do
     [ "${STREAM_UNLOCK[e]}" = 1 ] && UNLOCK_SELECT+="
 [[ ! \${R[*]} =~ 'No' ]] && check$e;" ||
@@ -565,6 +567,8 @@ if [[ $(pgrep -laf $0 | wc -l) < 4 ]]; then
           local FCM_TOKEN="${INSTALL_ID}:APA91b$(tr -dc 'A-Za-z0-9' </dev/urandom 2>/dev/null | head -c 134)"
 
           grep -q '.' <<< "$WARP_TEAM_TOKEN" && local TEAM_HEADER="--header \"Cf-Access-Jwt-Assertion: $(sed 's/.*?token=//' <<< "$WARP_TEAM_TOKEN")\""
+          local REGISTER_ERROR_TIME=0
+          local ACCOUNT=""
           until grep -q 'account' <<< "$ACCOUNT"; do
             # error code 1015 为限流，等待后重试
             [ "$ACCOUNT" = 'error code: 1015' ] && sleep 10
@@ -857,13 +861,13 @@ ABC
       # ========== 8. 解析返回数据，提取区域信息和可用性状态 ==========
       local IS_UNAVAILABLE=$(grep -E 'preview.*unavailable' <<< "$PREVIEW_CHECK_TMP")
 
-      local REGION=$(sed -n 's/.*"countryCode":[ ]*"\([^"]\+\)".*/\1/p' <<< "$TMP_RESULT")
+      local DISNEY_REGION=$(sed -n 's/.*"countryCode":[ ]*"\([^"]\+\)".*/\1/p' <<< "$TMP_RESULT")
 
       local IN_SUPPORTED_LOCATION=$(sed -n 's/.*"inSupportedLocation":[ ]*\([^,]\+\),.*/\1/p' <<< "$TMP_RESULT")
 
-      if [ -z "$REGION" ]; then
+      if [ -z "$DISNEY_REGION" ]; then
           return 2
-      elif [[ "$REGION" == "JP" ]]; then
+      elif [[ "$DISNEY_REGION" == "JP" ]]; then
           # Japan region
           REGION[1]="JP"
           return 0
@@ -872,11 +876,11 @@ ABC
           return 3
       elif [[ "$IN_SUPPORTED_LOCATION" == "true" ]]; then
           # Supported location
-          REGION[1]="$REGION"
+          REGION[1]="$DISNEY_REGION"
           return 0
       elif [[ "$IN_SUPPORTED_LOCATION" == "false" ]]; then
           # Will be available soon
-          REGION[1]="$REGION"
+          REGION[1]="$DISNEY_REGION"
           return 4
       else
           # Failed
@@ -958,7 +962,7 @@ ABC
           return 6
         fi
       else
-        REGION=$(curl ${NIC} --user-agent "${UA_BROWSER}" -SsL --max-time 10 "https://chatgpt.com/cdn-cgi/trace" 2>&1 | awk -F '=' '/^loc=/{print $2}')
+        REGION[2]=$(curl ${NIC} --user-agent "${UA_BROWSER}" -SsL --max-time 10 "https://chatgpt.com/cdn-cgi/trace" 2>&1 | awk -F '=' '/^loc=/{print $2}')
         if grep -q '(1)' <<< "$RESULT_ISO"; then
           return 7
         elif grep -q '(2)' <<< "$RESULT_ISO"; then
@@ -1036,32 +1040,40 @@ ABC
 
     # Google 检测函数
     MediaUnlockTest_Google() {
+      local G_COOKIE="SOCS=CAESHAgBEhJnd3NfMjAyNDA1MjYtMF9SQzIaAmVuIAEaBgiA_L6yBg"
+
       # ========== 1. 检测 Google 搜索验证码及风控拦截 ==========
       local SEARCH_RESULT=$(curl ${NIC} --user-agent "${UA_BROWSER}" -sSL --max-time 10 \
         -H "Accept-Language: en-US,en;q=0.9" \
+        -H "Cookie: ${G_COOKIE}" \
         -w "\n%{http_code}\n%{url_effective}" \
         "https://www.google.com/search?q=curl&hl=en" 2>&1)
 
       grep -q 'curl:' <<< "$SEARCH_RESULT" && return 1
 
-      # 检查是否命中 Google 常见风控、人机验证码拦截页面或异常 HTTP 状态码
-      local IS_BLOCKED=$(grep -iE 'sorry/index|unusual traffic from|detected unusual traffic|is blocked|unaddressed abuse|name="captcha"|id="recaptcha"' <<< "$SEARCH_RESULT")
       local HTTP_CODE=$(tail -n 2 <<< "$SEARCH_RESULT" | head -n 1)
+      local EFF_URL=$(tail -n 1 <<< "$SEARCH_RESULT")
+      local SEARCH_BODY=$(sed '$d' <<< "$SEARCH_RESULT" | sed '$d')
 
-      if [ -n "$IS_BLOCKED" ] || [[ "$HTTP_CODE" =~ ^(429|503)$ ]]; then
+      # 检查是否命中 Google 常见风控、人机验证码拦截页面或异常 HTTP 状态码
+      local IS_BLOCKED=$(grep -iE 'sorry/index|unusual traffic from|detected unusual traffic|is blocked|unaddressed abuse|name="captcha"|id="recaptcha"' <<< "$SEARCH_BODY")
+
+      if [ -n "$IS_BLOCKED" ] || [[ "$EFF_URL" =~ sorry/index ]] || [[ "$HTTP_CODE" =~ ^(429|503)$ ]]; then
         return 2
       fi
 
-      # 确认正常返回了 Google 搜索结果内容
-      local IS_OK=$(grep -i 'curl' <<< "$SEARCH_RESULT")
-      if [ -z "$IS_OK" ]; then
+      # 确认正常返回了 Google 搜索结果内容且状态码为 200
+      if [ -z "$SEARCH_BODY" ] || [[ "$HTTP_CODE" != "200" ]]; then
         return 1
       fi
 
       # ========== 2. 检测 Google / YouTube 送中及归属区域 ==========
       local G_REGION=""
       # 途径 1: 通过 YouTube 首页获取 Google 判定地区 (与 Google 服务体系 GeoIP 一致)
-      local YT_PAGE=$(curl ${NIC} --user-agent "${UA_BROWSER}" -sSL --max-time 10 "https://www.youtube.com/" 2>&1)
+      local YT_PAGE=$(curl ${NIC} --user-agent "${UA_BROWSER}" -sSL --max-time 10 \
+        -H "Accept-Language: en-US,en;q=0.9" \
+        -H "Cookie: ${G_COOKIE}" \
+        "https://www.youtube.com/" 2>&1)
       if ! grep -q 'curl:' <<< "$YT_PAGE"; then
         G_REGION=$(grep -oE '"(contentRegion|INNERTUBE_CONTEXT_GL|countryCode)":[ ]*"[A-Za-z]{2}"' <<< "$YT_PAGE" | head -n 1 | cut -d '"' -f4)
       fi
@@ -1069,7 +1081,8 @@ ABC
       # 途径 2: YouTube Premium 兜底
       if [ -z "$G_REGION" ]; then
         local PREM_PAGE=$(curl ${NIC} --user-agent "${UA_BROWSER}" -sSL --max-time 10 \
-          -H 'accept-language: en-US,en;q=0.9' \
+          -H "Accept-Language: en-US,en;q=0.9" \
+          -H "Cookie: ${G_COOKIE}" \
           "https://www.youtube.com/premium" 2>&1)
         if ! grep -q 'curl:' <<< "$PREM_PAGE"; then
           G_REGION=$(grep -oE '"(contentRegion|INNERTUBE_CONTEXT_GL|countryCode)":[ ]*"[A-Za-z]{2}"' <<< "$PREM_PAGE" | head -n 1 | cut -d '"' -f4)
@@ -1078,14 +1091,15 @@ ABC
 
       # 途径 3: 从 Google 搜索重定向有效 URL 兜底提取国家码
       if [ -z "$G_REGION" ]; then
-        local EFF_URL=$(tail -n 1 <<< "$SEARCH_RESULT")
-        if [[ "$EFF_URL" =~ google\.com\.([a-z]{2})(/|\?|$) ]]; then
+        if [[ "$EFF_URL" =~ [?\&]gl=([A-Za-z]{2})(\&|$) ]]; then
+          G_REGION="${BASH_REMATCH[1]}"
+        elif [[ "$EFF_URL" =~ google\.com\.([a-z]{2})(/|\?|$) ]]; then
           G_REGION="${BASH_REMATCH[1]}"
         elif [[ "$EFF_URL" =~ google\.co\.([a-z]{2})(/|\?|$) ]]; then
           G_REGION="${BASH_REMATCH[1]}"
         elif [[ "$EFF_URL" =~ google\.([a-z]{2})(/|\?|$) ]]; then
           G_REGION="${BASH_REMATCH[1]}"
-        elif [[ "$EFF_URL" =~ google\.com(/|\?|$) ]]; then
+        elif [[ "$EFF_URL" =~ ^https?://(www\.)?google\.com(/|\?|$) ]]; then
           G_REGION="US"
         fi
       fi
@@ -1098,7 +1112,7 @@ ABC
       fi
 
       # 判定是否匹配期望地区 (只要指定了 EXPECT，非期望地区则换 IP)
-      if [ -n "$EXPECT" ] && ! echo "${REGION[3]}" | grep -qi "$EXPECT"; then
+      if [ -n "$EXPECT" ] && ! echo "${REGION[3]}" | grep -qi "^${EXPECT}$"; then
         return 4
       fi
 
@@ -1134,7 +1148,7 @@ ABC
         ;;
       4 )
         R[3]="$NOT_UNLOCK_STATUS"
-        CONTENT="Google: ${R[3]} (Region: ${REGION[3]^^} != ${EXPECT^^})."
+        CONTENT="Google: ${R[3]} (Region: ${REGION[3]:-Unknown} != ${EXPECT^^})."
         ;;
       * )
         R[3]="$NOT_UNLOCK_STATUS"
@@ -1197,6 +1211,13 @@ set_cron_one() {
     rc-update add crond >/dev/null 2>&1
     rc-service crond status >/dev/null 2>&1 | grep -q started || rc-service crond start >/dev/null 2>&1
   else
+    # 若精简系统未安装 crontab，自动安装 cron / cronie
+    if ! command -v crontab >/dev/null 2>&1; then
+      local CRON_PKG="cron"
+      [ "$SYSTEM" = "CentOS" ] && CRON_PKG="cronie"
+      (${PACKAGE_INSTALL[b]} "$CRON_PKG" >/dev/null 2>&1 || (${PACKAGE_UPDATE[b]} >/dev/null 2>&1 && ${PACKAGE_INSTALL[b]} "$CRON_PKG" >/dev/null 2>&1))
+    fi
+
     # 优先使用 crontab 命令写入当前用户的 crontab（使 crontab -l 能直接查看到，且自动触发 cron 重新载入）
     if command -v crontab >/dev/null 2>&1; then
       (crontab -l 2>/dev/null | grep -v 'warp_unlock.sh'; echo "$USER_CRON_LINE") | crontab -
@@ -1262,11 +1283,17 @@ uninstall() {
     type -p systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q 'warp_unlock' && systemctl disable --now warp_unlock >/dev/null 2>&1
   fi
 
-  # 输出执行结果，如是切换模式则不显示
-  [ "$UN" = 1 ] && info "\n $(text 11) \n"
+  # 输出执行结果，如是切换模式则不显示；非 CLI 传参时清空旧的地区和 TG 缓存以便交互重新设置
+  if [ "$UN" = 1 ]; then
+    info "\n $(text 11) \n"
+  else
+    [ -z "$CLI_EXPECT" ] && unset EXPECT
+    [ -z "$CLI_TG" ] && unset TG_BOT_TOKEN TG_USERID MACHINE
+  fi
 
   # 杀死所有的程序，如果提前执行这步，会导致脚本整体退出
-  kill -9 $(pgrep -f warp_unlock.sh) >/dev/null 2>&1
+  local WARP_PIDS=$(pgrep -f warp_unlock.sh 2>/dev/null)
+  [ -n "$WARP_PIDS" ] && kill -9 $WARP_PIDS >/dev/null 2>&1 || true
 }
 
 # 传参 1/2
@@ -1296,12 +1323,9 @@ while getopts ":UuM:m:A:a:N:n:T:t:" OPTNAME; do
       fi
       ;;
     'A'|'a' )
-      [[ ! "$OPTARG" =~ ^[A-Za-z]{2}$ ]] && error " $(text 26) " || EXPECT="$OPTARG"
+      [[ ! "$OPTARG" =~ ^[A-Za-z]{2}$ ]] && error " $(text 26) " || { EXPECT="$OPTARG"; CLI_EXPECT=1; }
       ;;
     'N'|'n' )
-      for d in "${!STREAM[@]}"; do
-        [ "$d" = 0 ] && echo "${STREAM[d]}: null" > /usr/bin/status.log || echo "${STREAM[d]}: null" >> /usr/bin/status.log
-      done
       echo "$OPTARG" | grep -qi 'n' && STREAM_UNLOCK[0]='1' || STREAM_UNLOCK[0]='0'
       echo "$OPTARG" | grep -qi 'd' && STREAM_UNLOCK[1]='1' || STREAM_UNLOCK[1]='0'
       echo "$OPTARG" | grep -qi 'c' && STREAM_UNLOCK[2]='1' || STREAM_UNLOCK[2]='0'
@@ -1312,6 +1336,7 @@ while getopts ":UuM:m:A:a:N:n:T:t:" OPTNAME; do
       TG_USERID="$(echo $OPTARG | cut -d'@' -f2)"
       MACHINE="$(echo $OPTARG | cut -d'@' -f3)"
       MACHINE="${MACHINE:-'Stream Media Unlock'}"
+      CLI_TG=1
   esac
 done
 
